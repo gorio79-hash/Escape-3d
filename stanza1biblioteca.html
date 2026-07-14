@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Stanza 1 — Biblioteca 3D</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rye&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+if(!sessionStorage.getItem("codicePartita")) location.replace("index.html");
+</script>
+<style>
+:root { --gold:#C48A28; --cream:#F2DDAA; --panel:#150C03; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:#000; overflow:hidden; font-family:Palatino,Georgia,serif; }
+#canvas3d { position:fixed; inset:0; display:block; touch-action:none; }
+
+#mira {
+  position:fixed; top:50%; left:50%; width:6px; height:6px; margin:-3px;
+  border-radius:50%; background:rgba(242,221,170,.7); pointer-events:none; z-index:50;
+}
+#suggerimento {
+  position:fixed; bottom:26px; left:50%; transform:translateX(-50%);
+  background:rgba(21,12,3,.8); border:1px solid var(--gold); color:var(--cream);
+  padding:8px 18px; border-radius:16px; font-size:13px; opacity:0; transition:opacity .25s;
+  pointer-events:none; z-index:60; white-space:nowrap;
+}
+#suggerimento.attivo { opacity:1; }
+
+#velo {
+  position:fixed; inset:0; background:rgba(0,0,0,.78);
+  display:none; align-items:center; justify-content:center; z-index:200;
+}
+#velo.attivo { display:flex; }
+#popup {
+  background:var(--panel); border:2px solid var(--gold); border-radius:6px;
+  padding:28px 34px; max-width:460px; width:90%; color:var(--cream);
+  font-size:17px; line-height:1.6; max-height:85vh; overflow-y:auto; text-align:center;
+}
+#popup .nome { color:var(--gold); font-size:20px; margin-bottom:12px; letter-spacing:.05em; }
+#popup .testo { margin-bottom:18px; font-style:italic; }
+#popup .corsivo { font-style:italic; opacity:.7; }
+#popup .bottoni { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+#popup .bottoni.colonna { flex-direction:column; align-items:stretch; }
+#popup button, #popup .opzione {
+  padding:9px 22px; font-family:inherit; font-size:15px; cursor:pointer;
+  border-radius:3px; color:var(--cream); background:#241506; border:1px solid var(--gold);
+}
+#popup .si { background:#382010; border:2px solid var(--gold); }
+#popup .no { background:#380A08; border:2px solid #7A2A1A; }
+.suggerimento-testo { font-size:12px; opacity:.55; margin-top:12px; font-style:italic; }
+
+.rulli { display:flex; gap:14px; justify-content:center; margin:20px 0; }
+.rullo { display:flex; flex-direction:column; align-items:center; gap:6px; }
+.rullo .freccia {
+  background:#241506; border:1px solid var(--gold); color:var(--gold);
+  width:42px; height:30px; border-radius:3px; cursor:pointer; font-size:13px;
+}
+.lettera-rullo {
+  width:52px; height:60px; display:flex; align-items:center; justify-content:center;
+  background:#0A0604; border:2px solid var(--gold); border-radius:4px;
+  font-size:28px; color:var(--cream); letter-spacing:.02em; font-family:'Rye', cursive;
+}
+@keyframes scuotiPopup {
+  0%,100%{transform:translateX(0);} 20%{transform:translateX(-8px);} 40%{transform:translateX(8px);}
+  60%{transform:translateX(-5px);} 80%{transform:translateX(5px);}
+}
+.scuoti-popup { animation: scuotiPopup .4s ease; }
+
+.taccuino-feed { max-height:280px; overflow-y:auto; text-align:left; margin-bottom:12px; }
+.voce-feed { font-size:14px; padding:7px 4px; border-bottom:1px solid rgba(196,138,40,.15); line-height:1.4; }
+.voce-feed.indizio { opacity:.8; }
+.voce-feed.messaggio { color:var(--gold); }
+.etichetta-feed { margin-right:6px; }
+.input-messaggio-riga { display:flex; gap:8px; border-top:1px solid rgba(196,138,40,.25); padding-top:10px; }
+.input-messaggio-riga input {
+  flex:1; padding:10px; background:#0A0604; border:1px solid var(--gold); border-radius:4px;
+  color:var(--cream); font-family:inherit; font-size:14px;
+}
+.input-messaggio-riga button {
+  padding:10px 16px; background:#382010; border:2px solid var(--gold); border-radius:4px;
+  color:var(--cream); cursor:pointer; font-family:inherit;
+}
+
+.controllo-fisso {
+  position:fixed; top:18px; z-index:150; width:46px; height:46px; border-radius:50%;
+  background:rgba(21,12,3,.85); border:2px solid var(--gold); color:var(--cream);
+  font-size:19px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  box-shadow:0 2px 10px rgba(0,0,0,.5);
+}
+.controllo-fisso.sinistra { left:18px; }
+.controllo-fisso.destra { right:18px; }
+.controllo-fisso:active { transform:scale(.94); }
+.controllo-fisso:disabled { opacity:.3; cursor:default; }
+.badge-codice {
+  position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:150;
+  background:rgba(21,12,3,.8); border:1px solid var(--gold); color:var(--gold);
+  font-size:12px; letter-spacing:.15em; padding:6px 14px; border-radius:14px;
+}
+
+.pagina-libro {
+  color:#2E1F10; border-radius:3px; margin:-28px -34px -28px;
+  padding:30px 34px 16px; text-align:left; font-family:Palatino,Georgia,serif;
+  text-shadow:0 1px 0 rgba(255,255,255,.45);
+  background:linear-gradient(180deg,#EADFC0,#DCCBA0);
+}
+.pagina-libro .intestazione-pagina {
+  font-size:12px; letter-spacing:.15em; text-transform:uppercase; opacity:.55; margin-bottom:14px;
+}
+.pagina-libro .domanda-testo { font-size:17px; line-height:1.65; margin-bottom:20px; }
+.pagina-libro .chiudi-pagina {
+  display:block; margin:16px auto 0; background:#3B2A18; color:#F0E4C8; border:none;
+  padding:9px 24px; border-radius:3px; font-family:inherit; font-size:14px; cursor:pointer;
+}
+.numero-pagina {
+  text-align:center; font-size:17px; font-weight:bold; color:#1A1108; margin-top:18px; letter-spacing:.15em;
+}
+.lettera-cifrata { font-family:'Rye', cursive; font-size:1.4em; letter-spacing:.02em; }
+</style>
+</head>
+<body>
+
+<canvas id="canvas3d"></canvas>
+<div id="mira"></div>
+<div id="suggerimento"></div>
+<div id="velo"><div id="popup"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script>
+
+/* ══════════════════════════════════════════
+   CONNESSIONE SUPABASE E STATO CONDIVISO
+   (identico alla versione 360°: stessa tabella,
+   stessa logica di salvataggio/realtime)
+   ══════════════════════════════════════════ */
+
+const SUPABASE_URL = "https://vozzdhpwiauchvznfvsi.supabase.co";
+const SUPABASE_KEY = "sb_publishable_aLZfS_idBIXD1mEixlnGsA_FF70VGni";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const CODICE_PARTITA = sessionStorage.getItem("codicePartita");
+
+let statoLocale = { indizi: [], risposte: {}, serrature_sbloccate: [], messaggi: [] };
+let statoCaricato = false;
+
+async function caricaStatoRemoto() {
+  const { data, error } = await sb.from("partite").select("*").eq("codice", CODICE_PARTITA).maybeSingle();
+  if (!data) {
+    const nuova = { codice: CODICE_PARTITA, indizi: [], risposte: {}, serrature_sbloccate: [], messaggi: [] };
+    await sb.from("partite").insert(nuova);
+    statoLocale = nuova;
+  } else {
+    statoLocale = data;
+    if (!statoLocale.messaggi) statoLocale.messaggi = [];
+  }
+  statoCaricato = true;
+}
+
+async function salvaStatoRemoto() {
+  const { codice, indizi, risposte, serrature_sbloccate, messaggi } = statoLocale;
+  await sb.from("partite").update({ indizi, risposte, serrature_sbloccate, messaggi,
+    aggiornato_il: new Date().toISOString() }).eq("codice", codice);
+}
+
+function iscrivitiAggiornamenti() {
+  sb.channel("partita-" + CODICE_PARTITA)
+    .on("postgres_changes",
+      { event: "UPDATE", schema: "public", table: "partite", filter: `codice=eq.${CODICE_PARTITA}` },
+      payload => {
+        statoLocale = payload.new;
+        if (!statoLocale.messaggi) statoLocale.messaggi = [];
+        aggiornaFeedTaccuino();
+      })
+    .subscribe();
+}
+
+function aggiungiIndizio(id, testo, stanza) {
+  if (!statoLocale.indizi.find(i => i.id === id)) {
+    statoLocale.indizi.push({ id, testo, stanza, quando: Date.now() });
+    salvaStatoRemoto();
+  }
+}
+function serraturaSbloccata(stanzaId) {
+  return statoLocale.serrature_sbloccate.includes(stanzaId);
+}
+function sbloccaSerratura(stanzaId) {
+  if (!statoLocale.serrature_sbloccate.includes(stanzaId)) {
+    statoLocale.serrature_sbloccate.push(stanzaId);
+    salvaStatoRemoto();
+  }
+}
+
+function escapeHtml(str) {
+  return (str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+/* ══════════════════════════════════════════
+   POPUP (stesso motore usato nelle stanze 360°)
+   ══════════════════════════════════════════ */
+function mostraPopup(html) {
+  document.getElementById("popup").innerHTML = html;
+  document.getElementById("velo").classList.add("attivo");
+}
+function chiudiPopup() {
+  document.getElementById("velo").classList.remove("attivo");
+  document.getElementById("popup").innerHTML = "";
+}
+document.addEventListener("DOMContentLoaded", () => {
+  const velo = document.getElementById("velo");
+  velo.addEventListener("click", e => { if (e.target === velo) chiudiPopup(); });
+});
+
+/* ══════════════════════════════════════════
+   TACCUINO CONDIVISO (feed cronologico indizi + messaggi)
+   ══════════════════════════════════════════ */
+function costruisciFeedHtml() {
+  const voci = [
+    ...statoLocale.indizi.map(i => ({ tipo:"indizio", testo:`${i.stanza} — ${i.testo}`, quando:i.quando||0 })),
+    ...(statoLocale.messaggi||[]).map(m => ({ tipo:"messaggio", testo:m.testo, quando:m.quando||0 }))
+  ].sort((a,b) => a.quando - b.quando);
+
+  if (!voci.length) return `<div class="testo corsivo">Ancora nessun indizio né messaggio.</div>`;
+
+  return voci.map(v => `
+    <div class="voce-feed ${v.tipo}">
+      <span class="etichetta-feed">${v.tipo === "indizio" ? "📖" : "💬"}</span>${escapeHtml(v.testo)}
+    </div>
+  `).join("");
+}
+
+function aggiornaFeedTaccuino() {
+  const el = document.getElementById("listaFeed");
+  if (!el) return;
+  el.innerHTML = costruisciFeedHtml();
+  el.scrollTop = el.scrollHeight;
+}
+
+function apriTaccuino() {
+  mostraPopup(`
+    <div class="nome">― Taccuino condiviso ―</div>
+    <div class="taccuino-feed" id="listaFeed">${costruisciFeedHtml()}</div>
+    <div class="input-messaggio-riga">
+      <input type="text" id="inputMessaggio" placeholder="Scrivi un messaggio…"
+        onkeydown="if(event.key==='Enter')inviaMessaggio()">
+      <button onclick="inviaMessaggio()">Invia</button>
+    </div>
+    <div class="bottoni" style="margin-top:16px"><button class="si" onclick="chiudiPopup()">Chiudi</button></div>
+  `);
+  setTimeout(() => {
+    const el = document.getElementById("listaFeed");
+    if (el) el.scrollTop = el.scrollHeight;
+  }, 50);
+}
+
+function inviaMessaggio() {
+  const input = document.getElementById("inputMessaggio");
+  const testo = input.value.trim();
+  if (!testo) return;
+  if (!statoLocale.messaggi) statoLocale.messaggi = [];
+  statoLocale.messaggi.push({ testo, quando: Date.now() });
+  input.value = "";
+  salvaStatoRemoto();
+  aggiornaFeedTaccuino();
+}
+
+function iniettaControlliFissi(stanzaPrecedenteUrl) {
+  const div = document.createElement("div");
+  div.innerHTML = `
+    <button id="btnIndietro" class="controllo-fisso sinistra" title="Torna indietro">←</button>
+    <button id="btnTaccuino" class="controllo-fisso destra" title="Taccuino">📒</button>
+    <div class="badge-codice">Partita: ${CODICE_PARTITA}</div>
+  `;
+  document.body.appendChild(div);
+  const btnIndietro = document.getElementById("btnIndietro");
+  if (stanzaPrecedenteUrl) {
+    btnIndietro.addEventListener("click", () => { window.location.href = stanzaPrecedenteUrl; });
+  } else {
+    btnIndietro.disabled = true;
+  }
+  document.getElementById("btnTaccuino").addEventListener("click", apriTaccuino);
+}
+
+/* ══════════════════════════════════════════
+   CONTENUTI STANZA 1 — identici alla versione 360°
+   (4 indizi narrativi + 1 pagina extra + serratura)
+   ══════════════════════════════════════════ */
+
+const STANZA_ID = "stanza1";
+
+const QUIZ_STANZA = [
+  { id:"s1q1", stanza:STANZA_ID, pagina:35, letteraCorretta:"E",
+    html: `Un vecchio saggio si poneva costantemente questa domanda:
+      «Non ha voce, eppur ti parla. Non ha gambe, eppure viaggia
+      per il mondo... cosa può essere?» Le risposte che gli venivano
+      in mente erano un messa<span class="lettera-cifrata">g</span>gio,
+      o forse un v<span class="lettera-cifrata">e</span>cchio libro...
+      oppure qualcuno gli diceva che poteva essere una
+      <span class="lettera-cifrata">c</span>artolina, o forse
+      un'ombr<span class="lettera-cifrata">a</span>.` },
+
+  { id:"s1q2", stanza:STANZA_ID, pagina:5, letteraCorretta:"C",
+    html: `Nella sala accanto si tramandava la storia di un romanzo
+      strano, il cui vero protagonista era il lettore stesso, alle
+      prese con dieci inizi di storie diverse. Alcuni sostenevano
+      fosse opera di Umb<span class="lettera-cifrata">e</span>rto Eco,
+      altri giuravano fosse di Italo
+      <span class="lettera-cifrata">C</span>alvino. C'era chi
+      mormorava il nome di
+      <span class="lettera-cifrata">G</span>razia Deledda, e chi
+      invece era certo si trattasse di
+      <span class="lettera-cifrata">A</span>lberto Moravia.` },
+
+  { id:"s1q3", stanza:STANZA_ID, pagina:50, letteraCorretta:"G",
+    html: `Un enigma ancora più antico diceva così: «Cammina tutto
+      il giorno, ma resta sempre nello stesso punto. Cosa può
+      essere?» C'era chi pensava al
+      v<span class="lettera-cifrata">e</span>nto, chi invece
+      giurava fosse uno spe<span class="lettera-cifrata">c</span>chio.
+      Altri sussurravano fosse un
+      orolo<span class="lettera-cifrata">g</span>io, e qualcuno
+      insisteva si trattasse di una
+      st<span class="lettera-cifrata">a</span>tua.` },
+
+  { id:"s1q4", stanza:STANZA_ID, pagina:10, letteraCorretta:"C",
+    html: `Un'ultima domanda, scritta a margine, recitava così:
+      «Più lo nutri, più cresce. Se gli dai da bere, muore. Cosa
+      può essere?» Qualcuno pensava a un
+      alb<span class="lettera-cifrata">e</span>ro, qualcun altro
+      era certo fosse il fuo<span class="lettera-cifrata">c</span>o.
+      C'era chi diceva un
+      fun<span class="lettera-cifrata">g</span>o, e chi ancora
+      una pi<span class="lettera-cifrata">a</span>nta.` },
+];
+
+const PAGINA_EXTRA = {
+  id: "s1_extra", stanza: STANZA_ID, pagina: 67,
+  testo: "Nel margine, scritto a mano: «...e se la sala successiva chiedesse di sommare dei numeri, sappi già questo: il risultato che cerchi è comunque minore di cinquanta.»"
+};
+
+const SEQUENZA_CORRETTA = [...QUIZ_STANZA]
+  .sort((a, b) => a.pagina - b.pagina)
+  .map(q => q.letteraCorretta);
+
+const LETTERE_RULLO = ["E", "C", "G", "A"];
+
+function apriQuiz(quiz) {
+  aggiungiIndizio(quiz.id, `Pagina ${quiz.pagina} letta`, quiz.stanza);
+  mostraPopup(`
+    <div class="pagina-libro">
+      <div class="intestazione-pagina">Frammento ritrovato</div>
+      <div class="domanda-testo">${quiz.html}</div>
+      <div class="numero-pagina">— ${quiz.pagina} —</div>
+      <button class="chiudi-pagina" onclick="chiudiPopup()">Chiudi</button>
+    </div>
+  `);
+}
+
+function mostraPaginaExtra(pagina) {
+  aggiungiIndizio(pagina.id, pagina.testo, pagina.stanza);
+  mostraPopup(`
+    <div class="pagina-libro">
+      <div class="intestazione-pagina">Frammento ritrovato</div>
+      <div class="domanda-testo">${pagina.testo}</div>
+      <div class="numero-pagina">— ${pagina.pagina} —</div>
+      <button class="chiudi-pagina" onclick="chiudiPopup()">Chiudi</button>
+    </div>
+  `);
+}
+
+function apriSerratura(config) {
+  if (serraturaSbloccata(config.stanzaId)) {
+    mostraPopup(`
+      <div class="nome">― Serratura ―</div>
+      <div class="testo">La serratura è già aperta. Puoi proseguire.</div>
+      <div class="bottoni">
+        <button class="si" onclick="chiudiPopup(); ${config.vaiAvantiJS || ''}">Prosegui →</button>
+        <button class="no" onclick="chiudiPopup()">Chiudi</button>
+      </div>
+    `);
+    return;
+  }
+  window._rulli = [0, 0, 0, 0];
+  window._serraturaConfig = config;
+  mostraPopup(`
+    <div class="nome">― Serratura a combinazione ―</div>
+    <div class="testo corsivo" style="font-size:14px">
+      Inciso sopra: «...e se le lettere giuste fossero nascoste
+      nelle risposte giuste?...»
+    </div>
+    <div class="rulli">
+      ${[0,1,2,3].map(i => `
+        <div class="rullo">
+          <button class="freccia" onclick="ruotaRullo(${i}, 1)">▲</button>
+          <div class="lettera-rullo" id="rullo${i}">E</div>
+          <button class="freccia" onclick="ruotaRullo(${i}, -1)">▼</button>
+        </div>
+      `).join("")}
+    </div>
+    <div id="feedbackSerratura" class="suggerimento-testo" style="min-height:18px"></div>
+    <div class="bottoni" style="margin-top:14px">
+      <button class="si" onclick="verificaSerratura()">Apri</button>
+      <button class="no" onclick="chiudiPopup()">Chiudi</button>
+    </div>
+  `);
+}
+
+function ruotaRullo(indice, direzione) {
+  const n = LETTERE_RULLO.length;
+  window._rulli[indice] = (window._rulli[indice] + direzione + n) % n;
+  document.getElementById(`rullo${indice}`).textContent = LETTERE_RULLO[window._rulli[indice]];
+}
+
+function verificaSerratura() {
+  const config = window._serraturaConfig;
+  const combinazione = window._rulli.map(i => LETTERE_RULLO[i]);
+  const corretta = config.sequenza;
+  if (combinazione.every((l, i) => l === corretta[i])) {
+    sbloccaSerratura(config.stanzaId);
+    mostraPopup(`
+      <div class="nome">― Click! ―</div>
+      <div class="testo">La serratura si apre.</div>
+      <div class="bottoni"><button class="si" onclick="chiudiPopup(); ${config.vaiAvantiJS || ''}">Prosegui →</button></div>
+    `);
+  } else {
+    document.getElementById("feedbackSerratura").textContent = "Combinazione errata. Riprova.";
+    const box = document.querySelector("#popup");
+    box.classList.remove("scuoti-popup");
+    void box.offsetWidth;
+    box.classList.add("scuoti-popup");
+  }
+}
+
+function mostraProssimaStanza() {
+  window.location.href = "stanza2quadri.html";
+}
+
+/* ══════════════════════════════════════════
+   SCENA 3D — biblioteca stile "Minecraft"
+   ══════════════════════════════════════════ */
+const STANZA_LATO = 21;
+const ALTEZZA = 4;
+const ALTEZZA_OCCHI = 1.6;
+const RAGGIO_INTERAZIONE = 2.6;
+const meta = STANZA_LATO / 2;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0604);
+scene.fog = new THREE.Fog(0x0a0604, 9, 26);
+
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(0, ALTEZZA_OCCHI, 5.5);
+
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById("canvas3d"), antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+scene.add(new THREE.AmbientLight(0xffe0b8, 0.32));
+const luceAlto = new THREE.PointLight(0xffddaa, 0.35, 30);
+luceAlto.position.set(0, ALTEZZA - 0.3, 0);
+scene.add(luceAlto);
+
+/* ══════════════════════════════════════════
+   TEXTURE PROCEDURALI — generate via canvas 2D, nessuna immagine
+   esterna incorporata (coerente con lo stile "solo geometrie" del
+   prototipo): un pavimento a listarelli di parquet e un cielo per
+   le finestre.
+   ══════════════════════════════════════════ */
+function creaTexturaParquet() {
+  const size = 256;
+  const canvas = document.createElement("canvas");
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const toniLegno = ["#6b4c30", "#5f4128", "#75543a", "#664526", "#6f4e33"];
+  const assiW = 64, assiH = 16;
+  let riga = 0;
+  for (let y = 0; y < size; y += assiH) {
+    const offset = (riga % 2 === 0) ? 0 : assiW / 2;
+    for (let x = -assiW; x < size + assiW; x += assiW) {
+      ctx.fillStyle = toniLegno[Math.floor(Math.random() * toniLegno.length)];
+      ctx.fillRect(x + offset, y, assiW - 2, assiH - 2);
+    }
+    riga++;
+  }
+  ctx.strokeStyle = "rgba(20,12,6,0.55)";
+  ctx.lineWidth = 1;
+  for (let y = 0; y <= size; y += assiH) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(size, y); ctx.stroke();
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(STANZA_LATO / 2, STANZA_LATO / 2);
+  return texture;
+}
+
+function creaTexturaCielo(conLuna) {
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const grad = ctx.createLinearGradient(0, 0, 0, size);
+  grad.addColorStop(0, "#0B1730");
+  grad.addColorStop(1, "#223A5E");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  if (conLuna) {
+    // luna, con un lieve alone
+    ctx.fillStyle = "rgba(242,236,217,0.18)";
+    ctx.beginPath(); ctx.arc(92, 32, 22, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#F2ECD9";
+    ctx.beginPath(); ctx.arc(92, 32, 13, 0, Math.PI * 2); ctx.fill();
+  }
+  // stelle sparse, dimensione e luminosità casuali
+  for (let i = 0; i < 45; i++) {
+    const sx = Math.random() * size, sy = Math.random() * size * 0.85;
+    const r = Math.random() * 1.2 + 0.3;
+    ctx.fillStyle = `rgba(255,255,255,${(0.35 + Math.random() * 0.6).toFixed(2)})`;
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+  }
+  return new THREE.CanvasTexture(canvas);
+}
+const texturaCieloConLuna = creaTexturaCielo(true);
+const texturaCieloSenzaLuna = creaTexturaCielo(false);
+
+
+/* natura morta geometrica — forme semplici (frutta, brocca, piano
+   d'appoggio) in stile "cubista", per il quadro fra le due torce */
+function creaTexturaNaturaMorta() {
+  const size = 160;
+  const canvas = document.createElement("canvas");
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#362A1E";
+  ctx.fillRect(0, 0, size, size);
+  // piano d'appoggio
+  ctx.fillStyle = "#241A10";
+  ctx.beginPath();
+  ctx.moveTo(0, 120); ctx.lineTo(size, 108); ctx.lineTo(size, size); ctx.lineTo(0, size);
+  ctx.closePath(); ctx.fill();
+  // brocca (trapezio + collo)
+  ctx.fillStyle = "#7A5A3A";
+  ctx.beginPath();
+  ctx.moveTo(58, 118); ctx.lineTo(102, 112); ctx.lineTo(96, 62); ctx.lineTo(64, 66);
+  ctx.closePath(); ctx.fill();
+  ctx.fillRect(74, 48, 12, 20);
+  // frutta geometrica (cerchi/ellissi in toni caldi)
+  [
+    { x: 42, y: 100, r: 20, c: "#8B3A2A" },
+    { x: 118, y: 104, r: 17, c: "#B08A3A" },
+    { x: 70, y: 90, r: 15, c: "#5A6B3A" },
+    { x: 96, y: 96, r: 12, c: "#6B3A2A" }
+  ].forEach(f => {
+    ctx.fillStyle = f.c;
+    ctx.beginPath(); ctx.ellipse(f.x, f.y, f.r, f.r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
+  });
+  // contorni scuri per accentuare lo stile "a facce piatte"
+  ctx.strokeStyle = "rgba(20,12,6,0.55)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(0, 0, size, size);
+  return new THREE.CanvasTexture(canvas);
+}
+const texturaNaturaMorta = creaTexturaNaturaMorta();
+
+function creaTexturaArazzo() {
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#5A1E1E";
+  ctx.fillRect(0, 0, size, size);
+  ctx.strokeStyle = "#C48A28";
+  ctx.lineWidth = 3;
+  // cornice
+  ctx.strokeRect(6, 6, size - 12, size - 12);
+  // motivo a losanghe ripetuto
+  ctx.lineWidth = 2;
+  for (let y = 16; y < size; y += 24) {
+    for (let x = 16; x < size; x += 24) {
+      ctx.beginPath();
+      ctx.moveTo(x, y - 8); ctx.lineTo(x + 8, y); ctx.lineTo(x, y + 8); ctx.lineTo(x - 8, y);
+      ctx.closePath();
+      ctx.stroke();
+    }
+  }
+  return new THREE.CanvasTexture(canvas);
+}
+const texturaArazzo = creaTexturaArazzo();
+
+/* arazzo — pannello decorativo a parete, montato sopra le librerie */
+function creaArazzo(x, z, ry) {
+  const gruppo = new THREE.Group();
+  gruppo.position.set(x, 3.2, z);
+  gruppo.rotation.y = ry || 0;
+  scene.add(gruppo);
+
+  const pannello = new THREE.Mesh(
+    new THREE.BoxGeometry(1.3, 1.3, 0.04),
+    new THREE.MeshStandardMaterial({ map: texturaArazzo, roughness: 0.95 })
+  );
+  gruppo.add(pannello);
+
+  // asta appendiabiti in cima
+  const asta = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.025, 1.45, 6),
+    new THREE.MeshStandardMaterial({ color: 0x4a4030 })
+  );
+  asta.rotation.z = Math.PI / 2;
+  asta.position.y = 0.68;
+  gruppo.add(asta);
+
+  return gruppo;
+}
+
+/* pavimento e soffitto */
+const pavimento = new THREE.Mesh(
+  new THREE.BoxGeometry(STANZA_LATO, 0.2, STANZA_LATO),
+  new THREE.MeshStandardMaterial({ map: creaTexturaParquet(), roughness: 0.9 })
+);
+pavimento.position.y = -0.1;
+scene.add(pavimento);
+
+const soffitto = new THREE.Mesh(
+  new THREE.BoxGeometry(STANZA_LATO, 0.2, STANZA_LATO),
+  new THREE.MeshStandardMaterial({ color: 0x2a2018 })
+);
+soffitto.position.y = ALTEZZA + 0.1;
+scene.add(soffitto);
+
+/* cornice/greca perimetrale del soffitto — un bordo di listelli
+   leggermente sporgenti, colore chiaro a contrasto (stucco) */
+const matCornice = new THREE.MeshStandardMaterial({ color: 0x4a4030 });
+const spessoreCornice = 0.4;
+[
+  [STANZA_LATO, spessoreCornice, meta - spessoreCornice / 2],
+  [STANZA_LATO, spessoreCornice, -meta + spessoreCornice / 2],
+].forEach(([w, d, zPos]) => {
+  const listello = new THREE.Mesh(new THREE.BoxGeometry(w, 0.12, d), matCornice);
+  listello.position.set(0, ALTEZZA - 0.02, zPos);
+  scene.add(listello);
+});
+[
+  [spessoreCornice, STANZA_LATO, meta - spessoreCornice / 2],
+  [spessoreCornice, STANZA_LATO, -meta + spessoreCornice / 2],
+].forEach(([w, d, xPos]) => {
+  const listello = new THREE.Mesh(new THREE.BoxGeometry(w, 0.12, d), matCornice);
+  listello.position.set(xPos, ALTEZZA - 0.02, 0);
+  scene.add(listello);
+});
+
+/* rosone stilizzato al centro del soffitto — anelli concentrici in rilievo */
+const gruppoRosone = new THREE.Group();
+gruppoRosone.position.set(0, ALTEZZA - 0.015, 0);
+scene.add(gruppoRosone);
+[1.6, 1.15, 0.7].forEach((raggio, i) => {
+  const anello = new THREE.Mesh(
+    new THREE.TorusGeometry(raggio, 0.045, 8, 24),
+    new THREE.MeshStandardMaterial({ color: i === 1 ? 0xC48A28 : 0x4a4030 })
+  );
+  anello.rotation.x = Math.PI / 2;
+  gruppoRosone.add(anello);
+});
+
+/* pareti — nord con varco per la porta, sud/est/ovest piene */
+const matParete = new THREE.MeshStandardMaterial({ color: 0x8a7a5a });
+
+function creaParete(w, h, x, y, z, ry) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.2), matParete);
+  m.position.set(x, y, z);
+  m.rotation.y = ry;
+  scene.add(m);
+}
+// piccolo margine di sovrapposizione agli angoli: evita spiragli dovuti
+// ad arrotondamenti, meglio un filo di compenetrazione che una fessura visibile
+const MARGINE_ANGOLO = 0.1;
+const META_VARCO = 0.8; // metà larghezza del varco porta (varco totale 1.6)
+
+// troncone nord sinistro: dall'angolo ovest fino al bordo sinistro del varco
+const larghezzaTronconeNord = (meta - META_VARCO) + MARGINE_ANGOLO;
+const centroTronconeSx = -meta + larghezzaTronconeNord / 2 - MARGINE_ANGOLO / 2;
+const centroTronconeDx =  meta - larghezzaTronconeNord / 2 + MARGINE_ANGOLO / 2;
+
+creaParete(larghezzaTronconeNord, ALTEZZA, centroTronconeSx, ALTEZZA / 2, -meta, 0);
+creaParete(larghezzaTronconeNord, ALTEZZA, centroTronconeDx, ALTEZZA / 2, -meta, 0);
+creaParete(STANZA_LATO + MARGINE_ANGOLO, ALTEZZA, 0, ALTEZZA / 2,  meta, 0);
+creaParete(STANZA_LATO + MARGINE_ANGOLO, ALTEZZA, -meta, ALTEZZA / 2, 0, Math.PI / 2);
+creaParete(STANZA_LATO + MARGINE_ANGOLO, ALTEZZA,  meta, ALTEZZA / 2, 0, Math.PI / 2);
+
+// architrave sopra la porta: riempie lo spazio tra la sommità del
+// vano porta (ALTEZZA_PORTA) e il soffitto, altrimenti resta un
+// buco aperto sopra la porta
+const ALTEZZA_PORTA = 3;
+const spazioSopraPorta = ALTEZZA - ALTEZZA_PORTA;
+creaParete(META_VARCO * 2 + MARGINE_ANGOLO, spazioSopraPorta, 0, ALTEZZA_PORTA + spazioSopraPorta / 2, -meta, 0);
+
+/* elenco globale degli oggetti cliccabili/interagibili — popolato mano
+   a mano da chi crea porta, libri ecc. Usiamo un array esplicito
+   (invece di scene.children) perché molti oggetti interagibili sono
+   annidati dentro gruppi (le librerie, i tavoli) e scene.children
+   vedrebbe solo il primo livello. */
+const oggettiInterattivi = [];
+// materiali con bagliore dorato pulsante — stesso linguaggio visivo
+// degli hotspot "a bordo dorato pulsante" della versione 360°
+const materialiPulsanti = [];
+// fiamme (torce, candele, lampade) — tremolio animato nel loop di render;
+// ogni voce è { materiale, base, luce? } dove luce è una PointLight vera opzionale
+const fiamme = [];
+
+function registraFiamma(materiale, intensitaBase, luce) {
+  fiamme.push({
+    materiale, base: intensitaBase, luce: luce || null,
+    luceBase: luce ? luce.intensity : 0,
+    seme: Math.random() * 100
+  });
+}
+
+function registraInterattivo(mesh, dati) {
+  mesh.userData.interagibile = true;
+  Object.assign(mesh.userData, dati);
+  oggettiInterattivi.push(mesh);
+  const materiali = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  materiali.forEach(m => {
+    if (m && "emissive" in m) {
+      m.emissive = new THREE.Color(0xC48A28);
+      m.emissiveIntensity = 0.25;
+      materialiPulsanti.push(m);
+    }
+  });
+}
+
+/* ══════════════════════════════════════════
+   "SOLIDITÀ" DEGLI ARREDI — non è una vera fisica, ma basta a evitare
+   di camminare dentro ai mobili o troppo a ridosso di pareti/porta.
+   Ogni ostacolo è un rettangolo assiale {minX,maxX,minZ,maxZ} calcolato
+   AUTOMATICAMENTE dal bounding box reale dell'oggetto 3D (THREE.Box3) —
+   basta chiamare registraIngombro(gruppo) dopo aver costruito qualunque
+   mobile (tavolo, libreria, o quel che aggiungeremo in futuro) e la sua
+   sagoma diventa automaticamente invalicabile, senza stimare a mano
+   raggi o dimensioni. La correzione viene applicata OGNI FRAME alla
+   posizione reale della camera (non solo al punto di destinazione del
+   click): così non ci si taglia più dentro l'ostacolo durante il
+   tragitto, anche se il punto cliccato era oltre il mobile.
+   ══════════════════════════════════════════ */
+const RAGGIO_GIOCATORE = 0.45;
+const MARGINE_PARETE = 1.3; // distanza minima da pareti/porta
+const ingombri = []; // { minX, maxX, minZ, maxZ }
+
+function registraIngombro(oggetto3D, margineExtra = RAGGIO_GIOCATORE) {
+  oggetto3D.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(oggetto3D);
+  ingombri.push({
+    minX: box.min.x - margineExtra, maxX: box.max.x + margineExtra,
+    minZ: box.min.z - margineExtra, maxZ: box.max.z + margineExtra
+  });
+}
+
+function risolviPosizioneValida(x, z) {
+  let px = Math.max(-meta + MARGINE_PARETE, Math.min(meta - MARGINE_PARETE, x));
+  let pz = Math.max(-meta + MARGINE_PARETE, Math.min(meta - MARGINE_PARETE, z));
+  ingombri.forEach(r => {
+    if (px > r.minX && px < r.maxX && pz > r.minZ && pz < r.maxZ) {
+      // il punto è dentro l'ingombro: lo spingo fuori dal lato più vicino
+      const distSx = px - r.minX, distDx = r.maxX - px;
+      const distSu = pz - r.minZ, distGiu = r.maxZ - pz;
+      const minDist = Math.min(distSx, distDx, distSu, distGiu);
+      if (minDist === distSx) px = r.minX;
+      else if (minDist === distDx) px = r.maxX;
+      else if (minDist === distSu) pz = r.minZ;
+      else pz = r.maxZ;
+    }
+  });
+  return { x: px, z: pz };
+}
+
+/* porta — come nel prototipo, blocco scuro nel varco nord */
+const porta = new THREE.Mesh(
+  new THREE.BoxGeometry(1.4, ALTEZZA_PORTA, 0.15),
+  new THREE.MeshStandardMaterial({ color: 0x3a2412 })
+);
+porta.position.set(0, ALTEZZA_PORTA / 2, -meta + 0.1);
+scene.add(porta);
+registraInterattivo(porta, { nome: "Serratura", tipo: "serratura" });
+
+const maniglia = new THREE.Mesh(
+  new THREE.BoxGeometry(0.12, 0.12, 0.12),
+  new THREE.MeshStandardMaterial({ color: 0xC48A28 })
+);
+maniglia.position.set(0.5, ALTEZZA_PORTA / 2, -meta + 0.2);
+scene.add(maniglia);
+
+/* ══════════════════════════════════════════
+   COLONNE — quattro elementi strutturali vicino agli angoli,
+   base/fusto/capitello in stile dorico semplificato. Sono ostacoli
+   solidi (ci si cammina intorno, non attraverso).
+   ══════════════════════════════════════════ */
+const matPietra = new THREE.MeshStandardMaterial({ color: 0x8c8578 });
+
+function creaColonna(x, z) {
+  const gruppo = new THREE.Group();
+  gruppo.position.set(x, 0, z);
+  scene.add(gruppo);
+
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 0.18, 12), matPietra);
+  base.position.y = 0.09;
+  gruppo.add(base);
+
+  const fusto = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, ALTEZZA - 0.5, 12), matPietra);
+  fusto.position.y = 0.18 + (ALTEZZA - 0.5) / 2;
+  gruppo.add(fusto);
+
+  const capitello = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.24, 0.2, 12), matPietra);
+  capitello.position.y = ALTEZZA - 0.22;
+  gruppo.add(capitello);
+
+  registraIngombro(gruppo, 0.25);
+  return gruppo;
+}
+
+const inset = 1.5;
+creaColonna(-meta + inset, -meta + inset);
+creaColonna( meta - inset, -meta + inset);
+creaColonna(-meta + inset,  meta - inset);
+creaColonna( meta - inset,  meta - inset);
+
+/* ══════════════════════════════════════════
+   FINESTRE — puramente decorative: telaio in legno con croce
+   centrale (infisso "Minecraft"), vetro con texture a cielo
+   (gradiente azzurro + nuvole) invece di un buco a tinta piatta,
+   e una luce soffusa dietro per simulare la luce che entra.
+   ══════════════════════════════════════════ */
+function creaFinestra(x, z, ry, cielo) {
+  const gruppo = new THREE.Group();
+  gruppo.position.set(x, 2.1, z);
+  gruppo.rotation.y = ry || 0;
+  scene.add(gruppo);
+
+  const matTelaio = new THREE.MeshStandardMaterial({ color: 0x3a2412 });
+  const telaio = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 0.08), matTelaio);
+  gruppo.add(telaio);
+
+  const vetro = new THREE.Mesh(
+    new THREE.BoxGeometry(1.32, 0.92, 0.03),
+    new THREE.MeshStandardMaterial({
+      map: cielo,
+      emissive: 0x3A4A6A, emissiveIntensity: 0.5
+    })
+  );
+  vetro.position.z = -0.03;
+  gruppo.add(vetro);
+
+  // croce centrale del telaio (dettaglio "Minecraft")
+  const croceV = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.92, 0.05), matTelaio);
+  croceV.position.z = -0.04;
+  gruppo.add(croceV);
+  const croceH = new THREE.Mesh(new THREE.BoxGeometry(1.32, 0.06, 0.05), matTelaio);
+  croceH.position.z = -0.04;
+  gruppo.add(croceH);
+
+  const luce = new THREE.PointLight(0xAFC4E8, 0.4, 8);
+  luce.position.set(0, 0, -1.1);
+  gruppo.add(luce);
+
+  return gruppo;
+}
+
+// due finestre sulla parete sud (dalla parte opposta alla porta); il
+// punto centrale, fra le due torce, ospita invece il quadro
+creaFinestra(-4.5, meta - 0.16, 0, texturaCieloConLuna);
+creaFinestra(4.5, meta - 0.16, 0, texturaCieloSenzaLuna);
+
+/* quadro con natura morta geometrica — occupa lo spazio centrale fra
+   le due torce, dove prima c'era la finestra */
+function creaQuadroNaturaMorta(x, z, ry) {
+  const gruppo = new THREE.Group();
+  gruppo.position.set(x, 2.1, z);
+  gruppo.rotation.y = ry || 0;
+  scene.add(gruppo);
+
+  const cornice = new THREE.Mesh(
+    new THREE.BoxGeometry(1.15, 1.15, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0x4a3018 })
+  );
+  gruppo.add(cornice);
+
+  const tela = new THREE.Mesh(
+    new THREE.BoxGeometry(0.95, 0.95, 0.03),
+    new THREE.MeshStandardMaterial({ map: texturaNaturaMorta })
+  );
+  tela.position.z = -0.055;
+  gruppo.add(tela);
+
+  return gruppo;
+}
+creaQuadroNaturaMorta(0, meta - 0.16, 0);
+
+/* ══════════════════════════════════════════
+   TORCE A PARETE — bracciolo + fiamma emissiva animata (tremolio),
+   con una luce vera calda e di corto raggio. Ne mettiamo 2, ai lati
+   della finestra sud, per bilanciare la luce fredda del lampadario.
+   ══════════════════════════════════════════ */
+function creaTorcia(x, z, ry) {
+  const gruppo = new THREE.Group();
+  gruppo.position.set(x, 2.3, z);
+  gruppo.rotation.y = ry || 0;
+  scene.add(gruppo);
+
+  const bracciolo = new THREE.Mesh(
+    new THREE.BoxGeometry(0.1, 0.1, 0.35),
+    new THREE.MeshStandardMaterial({ color: 0x2a1c10 })
+  );
+  bracciolo.position.z = 0.15;
+  gruppo.add(bracciolo);
+
+  const manico = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.045, 0.4, 6),
+    new THREE.MeshStandardMaterial({ color: 0x3a2412 })
+  );
+  manico.rotation.x = Math.PI / 2;
+  manico.position.set(0, 0.1, 0.3);
+  gruppo.add(manico);
+
+  const matFiamma = new THREE.MeshStandardMaterial({
+    color: 0xFFA236, emissive: 0xFF7A1A, emissiveIntensity: 1
+  });
+  const fiamma = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.22, 8), matFiamma);
+  fiamma.position.set(0, 0.32, 0.3);
+  gruppo.add(fiamma);
+
+  const luce = new THREE.PointLight(0xFF9A3C, 0.9, 6);
+  luce.position.set(0, 0.32, 0.3);
+  gruppo.add(luce);
+
+  registraFiamma(matFiamma, 1, luce);
+  return gruppo;
+}
+
+creaTorcia(-1.1, meta - 0.15, Math.PI);
+creaTorcia( 1.1, meta - 0.15, Math.PI);
+
+/* ══════════════════════════════════════════
+   LAMPADARIO — scende dal soffitto al centro della stanza (sotto
+   il rosone): catena, anello, 6 candele con fiamma emissiva animata
+   e un'unica luce vera calda, principale fonte di luce della stanza.
+   ══════════════════════════════════════════ */
+const gruppoLampadario = new THREE.Group();
+gruppoLampadario.position.set(0, ALTEZZA - 0.1, 0);
+scene.add(gruppoLampadario);
+
+const catena = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.02, 0.02, 0.7, 6),
+  new THREE.MeshStandardMaterial({ color: 0x3a3226 })
+);
+catena.position.y = -0.35;
+gruppoLampadario.add(catena);
+
+const anelloLampadario = new THREE.Mesh(
+  new THREE.TorusGeometry(0.55, 0.04, 8, 20),
+  new THREE.MeshStandardMaterial({ color: 0x4a4030 })
+);
+anelloLampadario.position.y = -0.72;
+anelloLampadario.rotation.x = Math.PI / 2;
+gruppoLampadario.add(anelloLampadario);
+
+const matFiammaLampadario = new THREE.MeshStandardMaterial({
+  color: 0xFFB24A, emissive: 0xFF8C24, emissiveIntensity: 1
+});
+const nCandele = 6;
+for (let i = 0; i < nCandele; i++) {
+  const angolo = (i / nCandele) * Math.PI * 2;
+  const cx = Math.cos(angolo) * 0.55, cz = Math.sin(angolo) * 0.55;
+  const candela = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.03, 0.16, 6),
+    new THREE.MeshStandardMaterial({ color: 0xEADFC0 })
+  );
+  candela.position.set(cx, -0.64, cz);
+  gruppoLampadario.add(candela);
+  const fiammaCandela = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.11, 6), matFiammaLampadario);
+  fiammaCandela.position.set(cx, -0.53, cz);
+  gruppoLampadario.add(fiammaCandela);
+}
+
+const luceLampadario = new THREE.PointLight(0xFFC27A, 1.3, 16);
+luceLampadario.position.y = -0.68;
+gruppoLampadario.add(luceLampadario);
+
+registraFiamma(matFiammaLampadario, 1, luceLampadario);
+
+/* ══════════════════════════════════════════
+   LIBRERIE — struttura in legno con ripiani,
+   libri decorativi (non interagibili) + libri
+   "speciali" (interagibili, con bagliore dorato)
+   ══════════════════════════════════════════ */
+const matLegnoScuro = new THREE.MeshStandardMaterial({ color: 0x3a2412 });
+const matLegnoChiaro = new THREE.MeshStandardMaterial({ color: 0x6b4a2c });
+const COLORI_LIBRI = [0x6B4A35, 0x5A4A32, 0x4A5240];
+
+/* texture per la "costa" dei libri: colore di sfondo coerente con la
+   copertina, due bande dorate decorative e un titolo scritto in
+   verticale, come sui dorsi dei libri antichi */
+function creaTexturaCosta(coloreHex, titolo) {
+  const w = 64, h = 160;
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = coloreHex;
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(196,138,40,0.85)";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(3, 3, w - 6, h - 6);
+  ctx.fillStyle = "rgba(196,138,40,0.6)";
+  ctx.fillRect(6, 20, w - 12, 5);
+  ctx.fillRect(6, h - 25, w - 12, 5);
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = "#EADFC0";
+  ctx.font = "bold 15px Georgia, serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(titolo, 0, 0);
+  ctx.restore();
+  return new THREE.CanvasTexture(canvas);
+}
+
+const TITOLI_DECORATIVI = ["DE ARTE", "HISTORIA", "ENIGMATA", "ANNALES", "SAPIENTIA", "FRAGMENTA"];
+// un piccolo set precalcolato (colore copertina + texture costa abbinata),
+// riusato casualmente sui libri decorativi invece di generarne uno per libro
+const SPINE_LIBRI = [];
+COLORI_LIBRI.forEach((colore, i) => {
+  [0, 1].forEach(v => {
+    const esadecimale = "#" + colore.toString(16).padStart(6, "0");
+    const titolo = TITOLI_DECORATIVI[(i * 2 + v) % TITOLI_DECORATIVI.length];
+    SPINE_LIBRI.push({ coloreCopertina: colore, texturaCosta: creaTexturaCosta(esadecimale, titolo) });
+  });
+});
+
+// larghezza libreria, altezza, profondità
+const LIB_W = 3.4, LIB_H = 2.6, LIB_D = 0.5;
+
+function creaLibreria(x, z, ry, libriSpeciali) {
+  // libriSpeciali: array di { offsetX, livello, dati } — dati passati a registraInterattivo
+  const gruppo = new THREE.Group();
+  gruppo.position.set(x, 0, z);
+  gruppo.rotation.y = ry;
+  scene.add(gruppo);
+
+  // pannello di fondo
+  const fondo = new THREE.Mesh(new THREE.BoxGeometry(LIB_W, LIB_H, 0.1), matLegnoScuro);
+  fondo.position.set(0, LIB_H / 2, -LIB_D / 2 + 0.05);
+  gruppo.add(fondo);
+
+  // fianchi
+  [-1, 1].forEach(lato => {
+    const fianco = new THREE.Mesh(new THREE.BoxGeometry(0.08, LIB_H, LIB_D), matLegnoScuro);
+    fianco.position.set(lato * (LIB_W / 2 - 0.04), LIB_H / 2, 0);
+    gruppo.add(fianco);
+  });
+
+  // 3 ripiani
+  const livelliY = [0.15, LIB_H * 0.42, LIB_H * 0.72];
+  livelliY.forEach(y => {
+    const ripiano = new THREE.Mesh(new THREE.BoxGeometry(LIB_W - 0.16, 0.06, LIB_D - 0.1), matLegnoChiaro);
+    ripiano.position.set(0, y, 0.02);
+    gruppo.add(ripiano);
+  });
+
+  // libri decorativi lungo ogni ripiano
+  livelliY.forEach((y, livello) => {
+    let cursore = -LIB_W / 2 + 0.3;
+    while (cursore < LIB_W / 2 - 0.3) {
+      // salta lo spazio riservato ai libri speciali di questo livello
+      const speciale = libriSpeciali.find(s => s.livello === livello && Math.abs(s.offsetX - cursore) < 0.35);
+      if (speciale) { cursore += 0.45; continue; }
+      const scelta = SPINE_LIBRI[Math.floor(Math.random() * SPINE_LIBRI.length)];
+      const matCopertina = new THREE.MeshStandardMaterial({ color: scelta.coloreCopertina });
+      const matCosta = new THREE.MeshStandardMaterial({ map: scelta.texturaCosta });
+      // ordine facce BoxGeometry: +x,-x,+y,-y,+z,-z — la costa (+z) è
+      // il lato rivolto verso la stanza, le altre restano il colore di copertina
+      const libro = new THREE.Mesh(
+        new THREE.BoxGeometry(0.12, 0.3, 0.2),
+        [matCopertina, matCopertina, matCopertina, matCopertina, matCosta, matCopertina]
+      );
+      libro.position.set(cursore, y + 0.2, 0.02);
+      libro.rotation.y = (Math.random() - 0.5) * 0.15;
+      gruppo.add(libro);
+      cursore += 0.16;
+    }
+  });
+
+  // libri speciali (interagibili)
+  libriSpeciali.forEach(s => {
+    const y = livelliY[s.livello];
+    const etichetta = s.dati.quiz ? `PAG. ${s.dati.quiz.pagina}` : "★";
+    const matCopertinaSpeciale = new THREE.MeshStandardMaterial({ color: 0xD4A548 });
+    const matCostaSpeciale = new THREE.MeshStandardMaterial({ map: creaTexturaCosta("#D4A548", etichetta) });
+    const libroSpeciale = new THREE.Mesh(
+      new THREE.BoxGeometry(0.16, 0.34, 0.24),
+      [matCopertinaSpeciale, matCopertinaSpeciale, matCopertinaSpeciale, matCopertinaSpeciale, matCostaSpeciale, matCopertinaSpeciale]
+    );
+    libroSpeciale.position.set(s.offsetX, y + 0.22, 0.08);
+    gruppo.add(libroSpeciale);
+    registraInterattivo(libroSpeciale, s.dati);
+  });
+
+  registraIngombro(gruppo);
+
+  return gruppo;
+}
+
+// libreria a ovest: 2 libri speciali (pagine 35 e 5) — leggermente decentrata
+creaLibreria(-meta + LIB_D / 2 + 0.15, -1.3, Math.PI / 2, [
+  { offsetX: -0.6, livello: 2, dati: { nome: "Libro — pagina 35", tipo: "libro", quiz: QUIZ_STANZA[0] } },
+  { offsetX:  0.6, livello: 1, dati: { nome: "Libro — pagina 5",  tipo: "libro", quiz: QUIZ_STANZA[1] } },
+]);
+// seconda libreria a ovest, solo decorativa, più avanti lungo la stessa parete
+creaLibreria(-meta + LIB_D / 2 + 0.15, 4.6, Math.PI / 2, []);
+// arazzo nello spazio vuoto fra le due librerie ovest
+creaArazzo(-meta + 0.09, 2.15, Math.PI / 2);
+
+// libreria a est: 1 libro speciale (pagina 50) — decentrata in modo diverso, non speculare
+creaLibreria(meta - LIB_D / 2 - 0.15, 1.9, -Math.PI / 2, [
+  { offsetX: 0.3, livello: 2, dati: { nome: "Libro — pagina 50", tipo: "libro", quiz: QUIZ_STANZA[2] } },
+]);
+// seconda libreria a est, solo decorativa
+creaLibreria(meta - LIB_D / 2 - 0.15, -2.0, -Math.PI / 2, []);
+// arazzo nello spazio vuoto fra le due librerie est
+creaArazzo(meta - 0.09, -0.05, -Math.PI / 2);
+
+/* texture per il testo simulato sulle pagine aperte dei libri sui
+   tavoli: iniziale miniata + righe fatte di brevi segmenti (le
+   "parole"), proporzionata alle dimensioni reali della pagina */
+function creaTexturaPaginaScritta() {
+  const w = 100, h = 130;
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#EADFC0";
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "#8B3A2A";
+  ctx.fillRect(8, 10, 16, 16);
+  ctx.fillStyle = "#EADFC0";
+  ctx.font = "bold 13px Georgia, serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("I", 16, 19);
+  ctx.fillStyle = "rgba(60,40,20,0.55)";
+  for (let y = 14; y < h - 8; y += 8) {
+    let x = (y < 26) ? 30 : 8;
+    while (x < w - 8) {
+      const larghezzaParola = 4 + Math.random() * 10;
+      ctx.fillRect(x, y, larghezzaParola, 2);
+      x += larghezzaParola + 3 + Math.random() * 4;
+    }
+  }
+  return new THREE.CanvasTexture(canvas);
+}
+
+/* ══════════════════════════════════════════
+   TAVOLI con libri aperti — 2 tavoli, 1 libro
+   interagibile ciascuno (pagina 10 e pagina extra 67)
+   ══════════════════════════════════════════ */
+function creaTavolo(x, z, dati, ry) {
+  const gruppo = new THREE.Group();
+  gruppo.position.set(x, 0, z);
+  gruppo.rotation.y = ry || 0;
+  scene.add(gruppo);
+
+  const piano = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.08, 0.8), matLegnoChiaro);
+  piano.position.set(0, 0.78, 0);
+  gruppo.add(piano);
+
+  const gambaGeo = new THREE.BoxGeometry(0.08, 0.76, 0.08);
+  [[-0.55,-0.32],[0.55,-0.32],[-0.55,0.32],[0.55,0.32]].forEach(([gx,gz]) => {
+    const gamba = new THREE.Mesh(gambaGeo, matLegnoScuro);
+    gamba.position.set(gx, 0.38, gz);
+    gruppo.add(gamba);
+  });
+
+  // libro aperto sul tavolo — due "pagine" leggermente inclinate, con
+  // testo simulato sulla faccia superiore (ordine facce BoxGeometry:
+  // +x,-x,+y,-y,+z,-z — la faccia leggibile è +y, indice 2)
+  const matBordoPagina = new THREE.MeshStandardMaterial({ color: 0xEADFC0 });
+  const matTestoSx = new THREE.MeshStandardMaterial({ map: creaTexturaPaginaScritta() });
+  const paginaSx = new THREE.Mesh(
+    new THREE.BoxGeometry(0.32, 0.02, 0.42),
+    [matBordoPagina, matBordoPagina, matTestoSx, matBordoPagina, matBordoPagina, matBordoPagina]
+  );
+  paginaSx.position.set(-0.16, 0.83, 0);
+  paginaSx.rotation.z = 0.05;
+  gruppo.add(paginaSx);
+  const matTestoDx = new THREE.MeshStandardMaterial({ map: creaTexturaPaginaScritta() });
+  const paginaDx = new THREE.Mesh(
+    new THREE.BoxGeometry(0.32, 0.02, 0.42),
+    [matBordoPagina, matBordoPagina, matTestoDx, matBordoPagina, matBordoPagina, matBordoPagina]
+  );
+  paginaDx.position.set(0.16, 0.83, 0);
+  paginaDx.rotation.z = -0.05;
+  gruppo.add(paginaDx);
+
+  // il libro intero è l'oggetto interagibile (leggermente più grande, invisibile,
+  // avvolge le due pagine così il click funziona su tutta l'area del libro)
+  const zonaClick = new THREE.Mesh(
+    new THREE.BoxGeometry(0.7, 0.1, 0.5),
+    new THREE.MeshStandardMaterial({ color: 0xD4A548, transparent: true, opacity: 0.001 })
+  );
+  zonaClick.position.set(0, 0.86, 0);
+  gruppo.add(zonaClick);
+  registraInterattivo(zonaClick, dati);
+
+  // lampada da tavolo — base + fusto + paralume emissivo + luce calda debole,
+  // usa lo stesso sistema di tremolio delle torce/candele per coerenza
+  const baseLampada = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.055, 0.065, 0.04, 8),
+    new THREE.MeshStandardMaterial({ color: 0x4a4030 })
+  );
+  baseLampada.position.set(0.48, 0.84, 0.28);
+  gruppo.add(baseLampada);
+  const fustoLampada = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.018, 0.022, 0.24, 8),
+    new THREE.MeshStandardMaterial({ color: 0x3a3020 })
+  );
+  fustoLampada.position.set(0.48, 0.98, 0.28);
+  gruppo.add(fustoLampada);
+  const matParalume = new THREE.MeshStandardMaterial({
+    color: 0xE8D9A8, emissive: 0xC9A227, emissiveIntensity: 0.5, side: THREE.DoubleSide
+  });
+  const paralume = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.14, 8, 1, true), matParalume);
+  paralume.position.set(0.48, 1.17, 0.28);
+  gruppo.add(paralume);
+  const luceLampada = new THREE.PointLight(0xFFCB7A, 0.5, 4);
+  luceLampada.position.set(0.48, 1.16, 0.28);
+  gruppo.add(luceLampada);
+  registraFiamma(matParalume, 0.5, luceLampada);
+
+  // due sedie non speculari: distanza, lato e rotazione diversi tra loro
+  function costruisciSedia() {
+    const s = new THREE.Group();
+    const sedile = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.42), matLegnoChiaro);
+    sedile.position.y = 0.46;
+    s.add(sedile);
+    const schienale = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.5, 0.06), matLegnoScuro);
+    schienale.position.set(0, 0.72, -0.19);
+    s.add(schienale);
+    const gambaSediaGeo = new THREE.BoxGeometry(0.05, 0.46, 0.05);
+    [[-0.17,-0.17],[0.17,-0.17],[-0.17,0.17],[0.17,0.17]].forEach(([gx,gz]) => {
+      const gm = new THREE.Mesh(gambaSediaGeo, matLegnoScuro);
+      gm.position.set(gx, 0.23, gz);
+      s.add(gm);
+    });
+    return s;
+  }
+  const sedia1 = costruisciSedia();
+  sedia1.position.set(-0.72, 0, 0.58);
+  sedia1.rotation.y = Math.PI + 0.18;
+  gruppo.add(sedia1);
+  const sedia2 = costruisciSedia();
+  sedia2.position.set(0.55, 0, -0.66);
+  sedia2.rotation.y = -0.35;
+  gruppo.add(sedia2);
+
+  registraIngombro(gruppo);
+
+  return gruppo;
+}
+
+creaTavolo(-2.8, 0.9, { nome: "Libro — pagina 10", tipo: "libro", quiz: QUIZ_STANZA[3] }, -0.08);
+creaTavolo(2.3, 1.7, { nome: "Libro — pagina 67", tipo: "libro", extra: true }, 0.12);
+
+function apriInterazione(oggetto) {
+  const dati = oggetto.userData;
+  if (dati.tipo === "serratura") {
+    apriSerratura({
+      stanzaId: STANZA_ID,
+      sequenza: SEQUENZA_CORRETTA,
+      vaiAvantiJS: "mostraProssimaStanza()"
+    });
+  } else if (dati.tipo === "libro") {
+    if (dati.extra) mostraPaginaExtra(PAGINA_EXTRA);
+    else apriQuiz(dati.quiz);
+  } else if (dati.tipo === "cestino") {
+    mostraAppunto(APPUNTO_CESTINO);
+  }
+}
+
+/* ══════════════════════════════════════════
+   CESTINI — puramente decorativi, tranne uno che nasconde una
+   pergamena interagibile: un frammento "per dopo", non necessario
+   per sbloccare questa stanza ma potenzialmente riusabile in una
+   stanza futura (qui: il numero di finestre della biblioteca).
+   ══════════════════════════════════════════ */
+const APPUNTO_CESTINO = {
+  id: "s1_cestino", stanza: STANZA_ID,
+  testo: "Un lembo di pergamena, nascosto tra la paglia del cesto: «...conta le vetrate di questa sala: il numero potrebbe servirti in una stanza più avanti...»"
+};
+
+function mostraAppunto(nota) {
+  aggiungiIndizio(nota.id, nota.testo, nota.stanza);
+  mostraPopup(`
+    <div class="pagina-libro">
+      <div class="intestazione-pagina">Frammento ritrovato</div>
+      <div class="domanda-testo">${nota.testo}</div>
+      <button class="chiudi-pagina" onclick="chiudiPopup()">Chiudi</button>
+    </div>
+  `);
+}
+
+function creaCestino(x, z, opzioni) {
+  opzioni = opzioni || {};
+  const gruppo = new THREE.Group();
+  gruppo.position.set(x, 0, z);
+  scene.add(gruppo);
+
+  const matVimini = new THREE.MeshStandardMaterial({ color: 0x8a6a3a, roughness: 1 });
+  const corpo = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.22, 0.32, 10), matVimini);
+  corpo.position.y = 0.16;
+  gruppo.add(corpo);
+  const bordo = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.025, 6, 12), matVimini);
+  bordo.position.y = 0.32;
+  bordo.rotation.x = Math.PI / 2;
+  gruppo.add(bordo);
+
+  if (opzioni.interagibile) {
+    // una pergamena arrotolata che sbuca dal cesto — è l'oggetto cliccabile
+    const pergamena = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.05, 0.22, 8),
+      new THREE.MeshStandardMaterial({ color: 0xD8C79A })
+    );
+    pergamena.rotation.z = Math.PI / 3;
+    pergamena.position.set(0.05, 0.4, 0.02);
+    gruppo.add(pergamena);
+    registraInterattivo(pergamena, opzioni.dati);
+  } else {
+    // qualche libro/rotolo decorativo che sbuca dal cesto, solo estetico
+    [[-0.06, 0.35, 0.02], [0.08, 0.32, -0.04]].forEach(([dx, y, dz]) => {
+      const oggettoDecorativo = new THREE.Mesh(
+        new THREE.BoxGeometry(0.14, 0.05, 0.1),
+        new THREE.MeshStandardMaterial({ color: COLORI_LIBRI[Math.floor(Math.random() * COLORI_LIBRI.length)] })
+      );
+      oggettoDecorativo.position.set(dx, y, dz);
+      oggettoDecorativo.rotation.y = Math.random();
+      gruppo.add(oggettoDecorativo);
+    });
+  }
+
+  registraIngombro(gruppo, 0.2);
+  return gruppo;
+}
+
+creaCestino(-1.4, 0.4, { interagibile: true, dati: { nome: "Cesto", tipo: "cestino" } });
+creaCestino(-8.7, 4.6, {});
+
+/* ══════════════════════════════════════════
+   MOVIMENTO A CLICK (stesso principio del prototipo)
+   ══════════════════════════════════════════ */
+let target = camera.position.clone();
+let inMovimento = false;
+
+const raycaster = new THREE.Raycaster();
+const puntatore = new THREE.Vector2();
+
+function pickGroundAt(clientX, clientY) {
+  puntatore.x = (clientX / innerWidth) * 2 - 1;
+  puntatore.y = -(clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(puntatore, camera);
+  const hit = raycaster.intersectObject(pavimento)[0];
+  return hit ? hit.point : null;
+}
+
+function pickOggetto(clientX, clientY) {
+  puntatore.x = (clientX / innerWidth) * 2 - 1;
+  puntatore.y = -(clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(puntatore, camera);
+  const hits = raycaster.intersectObjects(oggettiInterattivi, false);
+  return hits[0] ? hits[0].object : null;
+}
+
+/* ══════════════════════════════════════════
+   SGUARDO A TRASCINAMENTO (mouse o dito, no Pointer Lock)
+   ══════════════════════════════════════════ */
+let yaw = 0, pitch = 0;
+let trascinando = false, ultimoX = 0, ultimoY = 0, mosso = false;
+// il gesto è "iniziato sul canvas" solo se mousedown/touchstart sono
+// partiti dal canvas — evita che un click su un pulsante HTML fisso
+// (torna indietro, taccuino, bottoni del popup) generi anche un click
+// "fantasma" nel mondo 3D quando arriva il mouseup globale. Stesso
+// identico rischio documentato per il popup, generalizzato qui a
+// qualunque elemento HTML sovrapposto al canvas.
+let gestoIniziatoSulCanvas = false;
+
+const canvas = document.getElementById("canvas3d");
+
+function inizioTocco(x, y) {
+  gestoIniziatoSulCanvas = true;
+  trascinando = true; mosso = false; ultimoX = x; ultimoY = y;
+}
+function muoviTocco(x, y) {
+  if (!trascinando) return;
+  const dx = x - ultimoX, dy = y - ultimoY;
+  if (Math.abs(dx) + Math.abs(dy) > 6) mosso = true;
+  // NB: verso invertito rispetto al "mouse-look" FPS diretto — qui si
+  // segue la convenzione da viewer panoramico/touch ("trascini la scena",
+  // come in uno street-view), più naturale su tablet senza pointer lock.
+  // Se dopo il test preferisci il verso FPS classico, basta togliere il segno "-".
+  yaw += dx * 0.004;
+  pitch = Math.max(-1, Math.min(1, pitch + dy * 0.004));
+  ultimoX = x; ultimoY = y;
+}
+function fineTocco(x, y) {
+  if (!gestoIniziatoSulCanvas) return;
+  gestoIniziatoSulCanvas = false;
+  trascinando = false;
+  if (document.getElementById("velo").classList.contains("attivo")) return;
+  if (!mosso) gestisciClick(x, y);
+}
+
+canvas.addEventListener("mousedown", e => inizioTocco(e.clientX, e.clientY));
+canvas.addEventListener("mousemove", e => muoviTocco(e.clientX, e.clientY));
+addEventListener("mouseup", e => fineTocco(e.clientX, e.clientY));
+
+canvas.addEventListener("touchstart", e => { const t = e.touches[0]; inizioTocco(t.clientX, t.clientY); }, { passive:true });
+canvas.addEventListener("touchmove", e => { const t = e.touches[0]; muoviTocco(t.clientX, t.clientY); }, { passive:true });
+canvas.addEventListener("touchend", e => { const t = e.changedTouches[0]; fineTocco(t.clientX, t.clientY); });
+
+function gestisciClick(x, y) {
+  const oggetto = pickOggetto(x, y);
+  if (oggetto) {
+    const posMondo = new THREE.Vector3();
+    oggetto.getWorldPosition(posMondo);
+    const distanza = camera.position.distanceTo(posMondo);
+    if (distanza <= RAGGIO_INTERAZIONE) {
+      apriInterazione(oggetto);
+    } else {
+      mostraSuggerimento("Avvicinati per interagire");
+    }
+    return;
+  }
+  const punto = pickGroundAt(x, y);
+  if (punto) {
+    const valido = risolviPosizioneValida(punto.x, punto.z);
+    target = new THREE.Vector3(valido.x, ALTEZZA_OCCHI, valido.z);
+    inMovimento = true;
+  }
+}
+
+function mostraSuggerimento(testo) {
+  const el = document.getElementById("suggerimento");
+  el.textContent = testo;
+  el.classList.add("attivo");
+  clearTimeout(window._tSuggerimento);
+  window._tSuggerimento = setTimeout(() => el.classList.remove("attivo"), 1400);
+}
+
+/* ══════════════════════════════════════════
+   LOOP DI RENDER
+   ══════════════════════════════════════════ */
+function anima() {
+  requestAnimationFrame(anima);
+
+  if (inMovimento) {
+    camera.position.lerp(target, 0.045);
+    if (camera.position.distanceTo(target) < 0.05) inMovimento = false;
+  }
+
+  // corregge SEMPRE la posizione reale, non solo il punto di destinazione:
+  // se il tragitto in linea retta verso il target attraverserebbe un
+  // ostacolo, qui viene respinta fuori ad ogni fotogramma
+  const posValida = risolviPosizioneValida(camera.position.x, camera.position.z);
+  camera.position.x = posValida.x;
+  camera.position.z = posValida.z;
+
+  camera.rotation.order = "YXZ";
+  camera.rotation.y = yaw;
+  camera.rotation.x = pitch;
+
+  const intensita = 0.25 + 0.15 * Math.sin(performance.now() * 0.003);
+  materialiPulsanti.forEach(m => { m.emissiveIntensity = intensita; });
+
+  const t = performance.now() * 0.001;
+  fiamme.forEach(f => {
+    const tremolio = f.base * (0.82 + 0.18 * Math.sin(t * 9 + f.seme) + 0.06 * Math.sin(t * 23 + f.seme));
+    f.materiale.emissiveIntensity = tremolio;
+    if (f.luce) f.luce.intensity = f.luceBase * (0.8 + 0.2 * Math.sin(t * 9 + f.seme));
+  });
+
+  renderer.render(scene, camera);
+}
+anima();
+
+/* ══════════════════════════════════════════
+   AVVIO — carica stato condiviso e attiva realtime
+   ══════════════════════════════════════════ */
+async function avviaStanza() {
+  mostraPopup(`<div class="nome">― Caricamento ―</div><div class="testo corsivo">Sto entrando nella partita ${CODICE_PARTITA}…</div>`);
+  await caricaStatoRemoto();
+  iscrivitiAggiornamenti();
+  chiudiPopup();
+  iniettaControlliFissi(null);
+}
+
+document.addEventListener("DOMContentLoaded", avviaStanza);
+</script>
+</body>
+</html>

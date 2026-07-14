@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Stanza 2 — Sala dei Quadri 3D</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rye&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+if(!sessionStorage.getItem("codicePartita")) location.replace("index.html");
+</script>
+<style>
+:root { --gold:#C48A28; --cream:#F2DDAA; --panel:#150C03; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:#000; overflow:hidden; font-family:Palatino,Georgia,serif; }
+#canvas3d { position:fixed; inset:0; display:block; touch-action:none; }
+
+#mira {
+  position:fixed; top:50%; left:50%; width:6px; height:6px; margin:-3px;
+  border-radius:50%; background:rgba(242,221,170,.7); pointer-events:none; z-index:50;
+}
+#suggerimento {
+  position:fixed; bottom:26px; left:50%; transform:translateX(-50%);
+  background:rgba(21,12,3,.8); border:1px solid var(--gold); color:var(--cream);
+  padding:8px 18px; border-radius:16px; font-size:13px; opacity:0; transition:opacity .25s;
+  pointer-events:none; z-index:60; white-space:nowrap;
+}
+#suggerimento.attivo { opacity:1; }
+
+#velo {
+  position:fixed; inset:0; background:rgba(0,0,0,.78);
+  display:none; align-items:center; justify-content:center; z-index:200;
+}
+#velo.attivo { display:flex; }
+#popup {
+  background:var(--panel); border:2px solid var(--gold); border-radius:6px;
+  padding:28px 34px; max-width:460px; width:90%; color:var(--cream);
+  font-size:17px; line-height:1.6; max-height:85vh; overflow-y:auto; text-align:center;
+}
+#popup .nome { color:var(--gold); font-size:20px; margin-bottom:12px; letter-spacing:.05em; }
+#popup .testo { margin-bottom:18px; font-style:italic; }
+#popup .corsivo { font-style:italic; opacity:.7; }
+#popup .bottoni { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+#popup button, #popup .opzione {
+  padding:9px 22px; font-family:inherit; font-size:15px; cursor:pointer;
+  border-radius:3px; color:var(--cream); background:#241506; border:1px solid var(--gold);
+}
+#popup .si { background:#382010; border:2px solid var(--gold); }
+#popup .no { background:#380A08; border:2px solid #7A2A1A; }
+.suggerimento-testo { font-size:12px; opacity:.55; margin-top:12px; font-style:italic; }
+
+.rulli { display:flex; gap:14px; justify-content:center; margin:20px 0; }
+.rullo { display:flex; flex-direction:column; align-items:center; gap:6px; }
+.rullo .freccia {
+  background:#241506; border:1px solid var(--gold); color:var(--gold);
+  width:42px; height:30px; border-radius:3px; cursor:pointer; font-size:13px;
+}
+.lettera-rullo {
+  width:52px; height:60px; display:flex; align-items:center; justify-content:center;
+  background:#0A0604; border:2px solid var(--gold); border-radius:4px;
+  font-size:28px; color:var(--cream); letter-spacing:.02em; font-family:'Rye', cursive;
+}
+@keyframes scuotiPopup {
+  0%,100%{transform:translateX(0);} 20%{transform:translateX(-8px);} 40%{transform:translateX(8px);}
+  60%{transform:translateX(-5px);} 80%{transform:translateX(5px);}
+}
+.scuoti-popup { animation: scuotiPopup .4s ease; }
+
+.taccuino-feed { max-height:280px; overflow-y:auto; text-align:left; margin-bottom:12px; }
+.voce-feed { font-size:14px; padding:7px 4px; border-bottom:1px solid rgba(196,138,40,.15); line-height:1.4; }
+.voce-feed.indizio { opacity:.8; }
+.voce-feed.messaggio { color:var(--gold); }
+.etichetta-feed { margin-right:6px; }
+.input-messaggio-riga { display:flex; gap:8px; border-top:1px solid rgba(196,138,40,.25); padding-top:10px; }
+.input-messaggio-riga input {
+  flex:1; padding:10px; background:#0A0604; border:1px solid var(--gold); border-radius:4px;
+  color:var(--cream); font-family:inherit; font-size:14px;
+}
+.input-messaggio-riga button {
+  padding:10px 16px; background:#382010; border:2px solid var(--gold); border-radius:4px;
+  color:var(--cream); cursor:pointer; font-family:inherit;
+}
+
+.controllo-fisso {
+  position:fixed; top:18px; z-index:150; width:46px; height:46px; border-radius:50%;
+  background:rgba(21,12,3,.85); border:2px solid var(--gold); color:var(--cream);
+  font-size:19px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  box-shadow:0 2px 10px rgba(0,0,0,.5);
+}
+.controllo-fisso.sinistra { left:18px; }
+.controllo-fisso.destra { right:18px; }
+.controllo-fisso:active { transform:scale(.94); }
+.controllo-fisso:disabled { opacity:.3; cursor:default; }
+.badge-codice {
+  position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:150;
+  background:rgba(21,12,3,.8); border:1px solid var(--gold); color:var(--gold);
+  font-size:12px; letter-spacing:.15em; padding:6px 14px; border-radius:14px;
+}
+
+.pagina-libro {
+  color:#2E1F10; border-radius:3px; margin:-28px -34px -28px;
+  padding:30px 34px 16px; text-align:left; font-family:Palatino,Georgia,serif;
+  text-shadow:0 1px 0 rgba(255,255,255,.45);
+  background:linear-gradient(180deg,#EADFC0,#DCCBA0);
+}
+.pagina-libro .intestazione-pagina {
+  font-size:12px; letter-spacing:.15em; text-transform:uppercase; opacity:.55; margin-bottom:14px;
+}
+.pagina-libro .domanda-testo { font-size:17px; line-height:1.65; margin-bottom:20px; }
+.pagina-libro .chiudi-pagina {
+  display:block; margin:16px auto 0; background:#3B2A18; color:#F0E4C8; border:none;
+  padding:9px 24px; border-radius:3px; font-family:inherit; font-size:14px; cursor:pointer;
+}
+.numero-pagina {
+  text-align:center; font-size:17px; font-weight:bold; color:#1A1108; margin-top:18px; letter-spacing:.15em;
+}
+.rebus-riga { display:flex; align-items:center; justify-content:center; gap:10px; margin:14px 0; }
+.rebus-lettere { font-family:'Rye', cursive; font-size:1.6em; }
+</style>
+</head>
+<body>
+
+<canvas id="canvas3d"></canvas>
+<div id="mira"></div>
+<div id="suggerimento"></div>
+<div id="velo"><div id="popup"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script>
+
+/* ══════════════════════════════════════════
+   CONNESSIONE SUPABASE E STATO CONDIVISO
+   (identico alle altre stanze: stessa tabella,
+   stessa logica di salvataggio/realtime)
+   ══════════════════════════════════════════ */
+
+const SUPABASE_URL = "https://vozzdhpwiauchvznfvsi.supabase.co";
+const SUPABASE_KEY = "sb_publishable_aLZfS_idBIXD1mEixlnGsA_FF70VGni";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const CODICE_PARTITA = sessionStorage.getItem("codicePartita");
+
+let statoLocale = { indizi: [], risposte: {}, serrature_sbloccate: [], messaggi: [] };
+let statoCaricato = false;
+
+async function caricaStatoRemoto() {
+  const { data, error } = await sb.from("partite").select("*").eq("codice", CODICE_PARTITA).maybeSingle();
+  if (!data) {
+    const nuova = { codice: CODICE_PARTITA, indizi: [], risposte: {}, serrature_sbloccate: [], messaggi: [] };
+    await sb.from("partite").insert(nuova);
+    statoLocale = nuova;
+  } else {
+    statoLocale = data;
+    if (!statoLocale.messaggi) statoLocale.messaggi = [];
+  }
+  statoCaricato = true;
+}
+
+async function salvaStatoRemoto() {
+  const { codice, indizi, risposte, serrature_sbloccate, messaggi } = statoLocale;
+  await sb.from("partite").update({ indizi, risposte, serrature_sbloccate, messaggi,
+    aggiornato_il: new Date().toISOString() }).eq("codice", codice);
+}
+
+function iscrivitiAggiornamenti() {
+  sb.channel("partita-" + CODICE_PARTITA)
+    .on("postgres_changes",
+      { event: "UPDATE", schema: "public", table: "partite", filter: `codice=eq.${CODICE_PARTITA}` },
+      payload => {
+        statoLocale = payload.new;
+        if (!statoLocale.messaggi) statoLocale.messaggi = [];
+        aggiornaFeedTaccuino();
+      })
+    .subscribe();
+}
+
+function aggiungiIndizio(id, testo, stanza) {
+  if (!statoLocale.indizi.find(i => i.id === id)) {
+    statoLocale.indizi.push({ id, testo, stanza, quando: Date.now() });
+    salvaStatoRemoto();
+  }
+}
+function serraturaSbloccata(stanzaId) {
+  return statoLocale.serrature_sbloccate.includes(stanzaId);
+}
+function sbloccaSerratura(stanzaId) {
+  if (!statoLocale.serrature_sbloccate.includes(stanzaId)) {
+    statoLocale.serrature_sbloccate.push(stanzaId);
+    salvaStatoRemoto();
+  }
+}
+
+function escapeHtml(str) {
+  return (str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+/* ══════════════════════════════════════════
+   POPUP
+   ══════════════════════════════════════════ */
+function mostraPopup(html) {
+  document.getElementById("popup").innerHTML = html;
+  document.getElementById("velo").classList.add("attivo");
+}
+function chiudiPopup() {
+  document.getElementById("velo").classList.remove("attivo");
+  document.getElementById("popup").innerHTML = "";
+}
+document.addEventListener("DOMContentLoaded", () => {
+  const velo = document.getElementById("velo");
+  velo.addEventListener("click", e => { if (e.target === velo) chiudiPopup(); });
+});
+
+/* ══════════════════════════════════════════
+   TACCUINO CONDIVISO
+   ══════════════════════════════════════════ */
+function costruisciFeedHtml() {
+  const voci = [
+    ...statoLocale.indizi.map(i => ({ tipo:"indizio", testo:`${i.stanza} — ${i.testo}`, quando:i.quando||0 })),
+    ...(statoLocale.messaggi||[]).map(m => ({ tipo:"messaggio", testo:m.testo, quando:m.quando||0 }))
+  ].sort((a,b) => a.quando - b.quando);
+
+  if (!voci.length) return `<div class="testo corsivo">Ancora nessun indizio né messaggio.</div>`;
+
+  return voci.map(v => `
+    <div class="voce-feed ${v.tipo}">
+      <span class="etichetta-feed">${v.tipo === "indizio" ? "📖" : "💬"}</span>${escapeHtml(v.testo)}
+    </div>
+  `).join("");
+}
+
+function aggiornaFeedTaccuino() {
+  const el = document.getElementById("listaFeed");
+  if (!el) return;
+  el.innerHTML = costruisciFeedHtml();
+  el.scrollTop = el.scrollHeight;
+}
+
+function apriTaccuino() {
+  mostraPopup(`
+    <div class="nome">― Taccuino condiviso ―</div>
+    <div class="taccuino-feed" id="listaFeed">${costruisciFeedHtml()}</div>
+    <div class="input-messaggio-riga">
+      <input type="text" id="inputMessaggio" placeholder="Scrivi un messaggio…"
+        onkeydown="if(event.key==='Enter')inviaMessaggio()">
+      <button onclick="inviaMessaggio()">Invia</button>
+    </div>
+    <div class="bottoni" style="margin-top:16px"><button class="si" onclick="chiudiPopup()">Chiudi</button></div>
+  `);
+  setTimeout(() => {
+    const el = document.getElementById("listaFeed");
+    if (el) el.scrollTop = el.scrollHeight;
+  }, 50);
+}
+
+function inviaMessaggio() {
+  const input = document.getElementById("inputMessaggio");
+  const testo = input.value.trim();
+  if (!testo) return;
+  if (!statoLocale.messaggi) statoLocale.messaggi = [];
+  statoLocale.messaggi.push({ testo, quando: Date.now() });
+  input.value = "";
+  salvaStatoRemoto();
+  aggiornaFeedTaccuino();
+}
+
+function iniettaControlliFissi(stanzaPrecedenteUrl) {
+  const div = document.createElement("div");
+  div.innerHTML = `
+    <button id="btnIndietro" class="controllo-fisso sinistra" title="Torna indietro">←</button>
+    <button id="btnTaccuino" class="controllo-fisso destra" title="Taccuino">📒</button>
+    <div class="badge-codice">Partita: ${CODICE_PARTITA}</div>
+  `;
+  document.body.appendChild(div);
+  const btnIndietro = document.getElementById("btnIndietro");
+  if (stanzaPrecedenteUrl) {
+    btnIndietro.addEventListener("click", () => { window.location.href = stanzaPrecedenteUrl; });
+  } else {
+    btnIndietro.disabled = true;
+  }
+  document.getElementById("btnTaccuino").addEventListener("click", apriTaccuino);
+}
+
+/* ══════════════════════════════════════════
+   CONTENUTI STANZA 2 — identici alla versione 360°
+   (4 enigmi numerici + serratura a 2 cifre, somma = 42)
+   ══════════════════════════════════════════ */
+
+const STANZA_ID = "stanza2";
+
+const NUMERI_STANZA = [
+  { id:"s2n1", stanza:STANZA_ID, pagina:12, corretto:8,
+    html: `Su un foglio ingiallito, qualcuno aveva annotato due equazioni,
+      quasi a voler mettere alla prova la mente di chi le avrebbe lette:
+      <br><br>log₂(x) = 5<br>log₄(y) = 1<br><br>Quanto vale x ÷ y?` },
+
+  { id:"s2n2", stanza:STANZA_ID, pagina:19, corretto:7,
+    html: `Un vecchio disegno mostra un contadino sulla riva di un fiume,
+      con una capra, un cavolo e un lupo. Ha una sola barca, che può
+      portare lui e al massimo un solo altro elemento per volta. Se
+      lascia soli il lupo e la capra, il lupo la divora. Se lascia soli
+      la capra e il cavolo, la capra lo mangia. Quanti attraversamenti
+      del fiume sono necessari, come minimo, per portare tutti e tre
+      sani e salvi sull'altra riva?` },
+
+  { id:"s2n3", stanza:STANZA_ID, pagina:27, corretto:18,
+    html: `Qualcuno ha lasciato questo rebus disegnato... chissà cosa
+      voleva dire.
+      <div class="rebus-riga">
+        <span class="rebus-lettere">DI</span>
+        <svg width="46" height="34" viewBox="0 0 46 34">
+          <ellipse cx="23" cy="20" rx="20" ry="12" fill="#8a8578" stroke="#4a4030" stroke-width="2"/>
+          <ellipse cx="15" cy="16" rx="5" ry="3" fill="#a8a294" opacity="0.6"/>
+        </svg>
+      </div>
+      (due lettere, più il disegno di un ciottolo/sasso)` },
+
+  { id:"s2n4", stanza:STANZA_ID, pagina:33, corretto:9,
+    html: `Un'ultima pagina propone un gioco: «Il mio primo è una breve
+      negazione. Il mio secondo è un pronome, la forma breve di "a voi".
+      Il mio tutto è un numero: qual è?»` },
+];
+
+const SOMMA_CORRETTA = NUMERI_STANZA.reduce((tot, q) => tot + q.corretto, 0);
+const SEQUENZA_CORRETTA = String(SOMMA_CORRETTA).padStart(2, "0").split("");
+const ALFABETO_RULLO = ["0","1","2","3","4","5","6","7","8","9"];
+
+function apriQuiz(quiz) {
+  aggiungiIndizio(quiz.id, `Pagina ${quiz.pagina} letta`, quiz.stanza);
+  mostraPopup(`
+    <div class="pagina-libro">
+      <div class="intestazione-pagina">Frammento ritrovato</div>
+      <div class="domanda-testo">${quiz.html}</div>
+      <div class="numero-pagina">— ${quiz.pagina} —</div>
+      <button class="chiudi-pagina" onclick="chiudiPopup()">Chiudi</button>
+    </div>
+  `);
+}
+
+function apriSerratura(config) {
+  if (serraturaSbloccata(config.stanzaId)) {
+    mostraPopup(`
+      <div class="nome">― Serratura ―</div>
+      <div class="testo">La serratura è già aperta. Puoi proseguire.</div>
+      <div class="bottoni">
+        <button class="si" onclick="chiudiPopup(); ${config.vaiAvantiJS || ''}">Prosegui →</button>
+        <button class="no" onclick="chiudiPopup()">Chiudi</button>
+      </div>
+    `);
+    return;
+  }
+  window._rulli = [0, 0];
+  window._serraturaConfig = config;
+  mostraPopup(`
+    <div class="nome">― Serratura numerica ―</div>
+    <div class="testo corsivo" style="font-size:14px">
+      Qualcuno ha lasciato inciso questa scritta: «Una qualunque
+      operazione associativa e commutativa, definita su un insieme,
+      che sia dotata di un elemento neutro... Se mi ricordassi come
+      svolgerla, saprei come usare i numeri tutti intorno a me.»
+    </div>
+    <div class="rulli">
+      ${[0, 1].map(i => `
+        <div class="rullo">
+          <button class="freccia" onclick="ruotaRullo(${i}, 1)">▲</button>
+          <div class="lettera-rullo" id="rullo${i}">0</div>
+          <button class="freccia" onclick="ruotaRullo(${i}, -1)">▼</button>
+        </div>
+      `).join("")}
+    </div>
+    <div id="feedbackSerratura" class="suggerimento-testo" style="min-height:18px"></div>
+    <div class="bottoni" style="margin-top:14px">
+      <button class="si" onclick="verificaSerratura()">Apri</button>
+      <button class="no" onclick="chiudiPopup()">Chiudi</button>
+    </div>
+  `);
+}
+
+function ruotaRullo(indice, direzione) {
+  const n = ALFABETO_RULLO.length;
+  window._rulli[indice] = (window._rulli[indice] + direzione + n) % n;
+  document.getElementById(`rullo${indice}`).textContent = ALFABETO_RULLO[window._rulli[indice]];
+}
+
+function verificaSerratura() {
+  const config = window._serraturaConfig;
+  const combinazione = window._rulli.map(i => ALFABETO_RULLO[i]);
+  const corretta = config.sequenza;
+  if (combinazione.every((v, i) => v === corretta[i])) {
+    sbloccaSerratura(config.stanzaId);
+    mostraPopup(`
+      <div class="nome">― Click! ―</div>
+      <div class="testo">La serratura si apre.</div>
+      <div class="bottoni"><button class="si" onclick="chiudiPopup(); ${config.vaiAvantiJS || ''}">Prosegui →</button></div>
+    `);
+  } else {
+    document.getElementById("feedbackSerratura").textContent = "Combinazione errata. Riprova.";
+    const box = document.querySelector("#popup");
+    box.classList.remove("scuoti-popup");
+    void box.offsetWidth;
+    box.classList.add("scuoti-popup");
+  }
+}
+
+// la stanza3 non è ancora stata costruita in 3D
+function mostraProssimaStanza() {
+  mostraPopup(`
+    <div class="nome">― Oltre la porta ―</div>
+    <div class="testo">La stanza successiva è ancora in costruzione nella
+      versione 3D. La serratura resta sbloccata: potrai proseguire da qui
+      non appena sarà pronta.</div>
+    <div class="bottoni"><button class="si" onclick="chiudiPopup()">Va bene</button></div>
+  `);
+}
+
+function apriPortaIngresso() {
+  mostraPopup(`
+    <div class="nome">― Porta della biblioteca ―</div>
+    <div class="testo">Puoi tornare sui tuoi passi verso la sala precedente.</div>
+    <div class="bottoni">
+      <button class="si" onclick="window.location.href='stanza1biblioteca.html'">Torna indietro →</button>
+      <button class="no" onclick="chiudiPopup()">Resta qui</button>
+    </div>
+  `);
+}
+
+/* due oggetti "misteriosi" sul tavolo — il loro scopo non è ancora
+   deciso: per ora mostrano solo un frammento narrativo e vengono
+   segnati nel taccuino, pronti per essere agganciati a un enigma
+   futuro senza dover toccare il resto della stanza */
+const PIATTO_MISTERIOSO = {
+  id: "s2_piatto", stanza: STANZA_ID, nome: "Piatto a metà",
+  testo: "Un piatto a metà consumato, i resti ormai freddi. Sul bordo, quasi invisibile, un graffio ripetuto tre volte — non sembra casuale, ma non è ancora chiaro a cosa serva."
+};
+const CALICE_MISTERIOSO = {
+  id: "s2_calice", stanza: STANZA_ID, nome: "Calice dimenticato",
+  testo: "Un calice ancora mezzo pieno di un liquido scuro. Sul fondo, capovolto, si intravede inciso un piccolo simbolo — forse tornerà utile più avanti, forse è solo un dettaglio."
+};
+function apriMisterioso(dati) {
+  aggiungiIndizio(dati.id, dati.testo, dati.stanza);
+  mostraPopup(`
+    <div class="nome">― ${dati.nome} ―</div>
+    <div class="testo">${dati.testo}</div>
+    <div class="bottoni"><button class="si" onclick="chiudiPopup()">Chiudi</button></div>
+  `);
+}
+
+function apriInterazione(oggetto) {
+  const dati = oggetto.userData;
+  if (dati.tipo === "serratura") {
+    apriSerratura({ stanzaId: STANZA_ID, sequenza: SEQUENZA_CORRETTA, vaiAvantiJS: "mostraProssimaStanza()" });
+  } else if (dati.tipo === "porta-ingresso") {
+    apriPortaIngresso();
+  } else if (dati.tipo === "quadro-enigma") {
+    apriQuiz(dati.quiz);
+  } else if (dati.tipo === "misterioso") {
+    apriMisterioso(dati.info);
+  }
+}
+
+/* ══════════════════════════════════════════
+   SCENA 3D — sala dei quadri, stile "Minecraft"
+   ══════════════════════════════════════════ */
+const STANZA_LATO = 26;
+const ALTEZZA = 4;
+const ALTEZZA_OCCHI = 1.6;
+const RAGGIO_INTERAZIONE = 2.6;
+const meta = STANZA_LATO / 2;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0604);
+scene.fog = new THREE.Fog(0x0a0604, 10, 30);
+
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(0, ALTEZZA_OCCHI, -meta + 3);
+
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById("canvas3d"), antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+scene.add(new THREE.AmbientLight(0xffe0b8, 0.34));
+const luceAlto1 = new THREE.PointLight(0xffddaa, 0.5, 20);
+luceAlto1.position.set(0, ALTEZZA - 0.3, -meta / 2);
+scene.add(luceAlto1);
+const luceAlto2 = new THREE.PointLight(0xffddaa, 0.5, 20);
+luceAlto2.position.set(0, ALTEZZA - 0.3, meta / 2);
+scene.add(luceAlto2);
+
+/* ══════════════════════════════════════════
+   TEXTURE PROCEDURALI
+   ══════════════════════════════════════════ */
+function creaTexturaPietra() {
+  const size = 256;
+  const canvas = document.createElement("canvas");
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const cella = 32;
+  const toniChiari = ["#9a9484", "#8f8878"];
+  const toniScuri = ["#6f6a5c", "#645f52"];
+  for (let y = 0; y < size; y += cella) {
+    for (let x = 0; x < size; x += cella) {
+      const scacco = ((x / cella) + (y / cella)) % 2 === 0;
+      const toni = scacco ? toniChiari : toniScuri;
+      ctx.fillStyle = toni[Math.floor(Math.random() * toni.length)];
+      ctx.fillRect(x, y, cella, cella);
+    }
+  }
+  ctx.strokeStyle = "rgba(20,15,10,0.35)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= size; i += cella) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(size, i); ctx.stroke();
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(STANZA_LATO / 3, STANZA_LATO / 3);
+  return texture;
+}
+
+function creaTexturaPaesaggio() {
+  const w = 140, h = 100;
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  const palette = [
+    { cielo1: "#4A6B8A", cielo2: "#C9D9E8", terra: "#5A6B3A", monte: "#3A4250" },
+    { cielo1: "#8A5A3A", cielo2: "#E8C9A0", terra: "#6B5A3A", monte: "#4A3A2A" },
+    { cielo1: "#3A4A5A", cielo2: "#8AA0B8", terra: "#3A4A3A", monte: "#2A323A" }
+  ];
+  const p = palette[Math.floor(Math.random() * palette.length)];
+  const grad = ctx.createLinearGradient(0, 0, 0, h * 0.65);
+  grad.addColorStop(0, p.cielo1); grad.addColorStop(1, p.cielo2);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h * 0.65);
+  // sole/luna
+  ctx.fillStyle = "rgba(255,250,230,0.85)";
+  ctx.beginPath(); ctx.arc(w * 0.75, h * 0.22, 8, 0, Math.PI * 2); ctx.fill();
+  // montagne stilizzate, sagome sovrapposte
+  ctx.fillStyle = p.monte;
+  ctx.beginPath();
+  ctx.moveTo(0, h * 0.6); ctx.lineTo(w * 0.28, h * 0.32); ctx.lineTo(w * 0.5, h * 0.6);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(w * 0.35, h * 0.6); ctx.lineTo(w * 0.68, h * 0.4); ctx.lineTo(w, h * 0.6);
+  ctx.closePath(); ctx.fill();
+  // terreno
+  ctx.fillStyle = p.terra;
+  ctx.fillRect(0, h * 0.6, w, h * 0.4);
+  return new THREE.CanvasTexture(canvas);
+}
+
+function creaTexturaAstratto() {
+  const size = 120;
+  const canvas = document.createElement("canvas");
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const sfondi = ["#3A2F22", "#2A2A3A", "#3A2A2A", "#22302A"];
+  ctx.fillStyle = sfondi[Math.floor(Math.random() * sfondi.length)];
+  ctx.fillRect(0, 0, size, size);
+  const colori = ["#C48A28", "#8B3A2A", "#5A6B8A", "#B0A03A", "#6B4A8B", "#3A6B5A"];
+  const nForme = 4 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < nForme; i++) {
+    ctx.fillStyle = colori[Math.floor(Math.random() * colori.length)];
+    ctx.globalAlpha = 0.75 + Math.random() * 0.25;
+    const forma = Math.floor(Math.random() * 3);
+    const x = Math.random() * size, y = Math.random() * size, r = 10 + Math.random() * 26;
+    if (forma === 0) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+    else if (forma === 1) { ctx.fillRect(x - r / 2, y - r / 2, r, r); }
+    else {
+      ctx.beginPath();
+      ctx.moveTo(x, y - r); ctx.lineTo(x + r, y + r); ctx.lineTo(x - r, y + r);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+  return new THREE.CanvasTexture(canvas);
+}
+
+function creaTexturaFigura() {
+  const w = 90, h = 140;
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#4A4034";
+  ctx.fillRect(0, 0, w, h);
+  const intera = Math.random() > 0.5;
+  const pelle = ["#C9A074", "#B08858", "#8B6B48"][Math.floor(Math.random() * 3)];
+  const abito = ["#5A1E1E", "#1E3A5A", "#3A4A2A", "#4A2A5A"][Math.floor(Math.random() * 4)];
+  const cy = intera ? h * 0.22 : h * 0.28;
+  // testa
+  ctx.fillStyle = pelle;
+  ctx.beginPath(); ctx.arc(w / 2, cy, w * 0.16, 0, Math.PI * 2); ctx.fill();
+  // busto (trapezio)
+  ctx.fillStyle = abito;
+  const bustoTop = cy + w * 0.18, bustoBot = intera ? h * 0.62 : h * 0.92;
+  ctx.beginPath();
+  ctx.moveTo(w * 0.38, bustoTop); ctx.lineTo(w * 0.62, bustoTop);
+  ctx.lineTo(w * 0.72, bustoBot); ctx.lineTo(w * 0.28, bustoBot);
+  ctx.closePath(); ctx.fill();
+  if (intera) {
+    // gambe
+    ctx.fillRect(w * 0.32, bustoBot, w * 0.15, h - bustoBot - 6);
+    ctx.fillRect(w * 0.53, bustoBot, w * 0.15, h - bustoBot - 6);
+  }
+  return new THREE.CanvasTexture(canvas);
+}
+
+/* pavimento e soffitto */
+const pavimento = new THREE.Mesh(
+  new THREE.BoxGeometry(STANZA_LATO, 0.2, STANZA_LATO),
+  new THREE.MeshStandardMaterial({ map: creaTexturaPietra(), roughness: 0.85 })
+);
+pavimento.position.y = -0.1;
+scene.add(pavimento);
+
+const soffitto = new THREE.Mesh(
+  new THREE.BoxGeometry(STANZA_LATO, 0.2, STANZA_LATO),
+  new THREE.MeshStandardMaterial({ color: 0x241c14 })
+);
+soffitto.position.y = ALTEZZA + 0.1;
+scene.add(soffitto);
+
+/* cornice perimetrale del soffitto, come nella biblioteca */
+const matCornice = new THREE.MeshStandardMaterial({ color: 0x4a4030 });
+const spessoreCornice = 0.4;
+[
+  [STANZA_LATO, spessoreCornice, meta - spessoreCornice / 2],
+  [STANZA_LATO, spessoreCornice, -meta + spessoreCornice / 2],
+].forEach(([w, d, zPos]) => {
+  const listello = new THREE.Mesh(new THREE.BoxGeometry(w, 0.12, d), matCornice);
+  listello.position.set(0, ALTEZZA - 0.02, zPos);
+  scene.add(listello);
+});
+[
+  [spessoreCornice, STANZA_LATO, meta - spessoreCornice / 2],
+  [spessoreCornice, STANZA_LATO, -meta + spessoreCornice / 2],
+].forEach(([w, d, xPos]) => {
+  const listello = new THREE.Mesh(new THREE.BoxGeometry(w, 0.12, d), matCornice);
+  listello.position.set(xPos, ALTEZZA - 0.02, 0);
+  scene.add(listello);
+});
+
+/* rosone stilizzato al centro del soffitto — anelli concentrici in rilievo */
+const gruppoRosone = new THREE.Group();
+gruppoRosone.position.set(0, ALTEZZA - 0.015, 0);
+scene.add(gruppoRosone);
+[1.7, 1.2, 0.7].forEach((raggio, i) => {
+  const anello = new THREE.Mesh(
+    new THREE.TorusGeometry(raggio, 0.045, 8, 24),
+    new THREE.MeshStandardMaterial({ color: i === 1 ? 0xC48A28 : 0x4a4030 })
+  );
+  anello.rotation.x = Math.PI / 2;
+  gruppoRosone.add(anello);
+});
+
+/* ══════════════════════════════════════════
+   PARETI — nord (ingresso) e sud (uscita) con varco per porta,
+   est/ovest piene per ospitare i quadri
+   ══════════════════════════════════════════ */
+const matParete = new THREE.MeshStandardMaterial({ color: 0x8a7a5a });
+
+function creaParete(w, h, x, y, z, ry) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.2), matParete);
+  m.position.set(x, y, z);
+  m.rotation.y = ry;
+  scene.add(m);
+}
+
+const MARGINE_ANGOLO = 0.1;
+const META_VARCO = 0.8;
+const ALTEZZA_PORTA = 3;
+const larghezzaTroncone = (meta - META_VARCO) + MARGINE_ANGOLO;
+const centroTronconeSx = -meta + larghezzaTroncone / 2 - MARGINE_ANGOLO / 2;
+const centroTronconeDx = meta - larghezzaTroncone / 2 + MARGINE_ANGOLO / 2;
+const spazioSopraPorta = ALTEZZA - ALTEZZA_PORTA;
+
+// crea una parete nord/sud con varco porta + architrave (evita il
+// buco sopra la porta già incontrato e corretto nella biblioteca)
+function creaParteConVarco(zMuro) {
+  creaParete(larghezzaTroncone, ALTEZZA, centroTronconeSx, ALTEZZA / 2, zMuro, 0);
+  creaParete(larghezzaTroncone, ALTEZZA, centroTronconeDx, ALTEZZA / 2, zMuro, 0);
+  creaParete(META_VARCO * 2 + MARGINE_ANGOLO, spazioSopraPorta, 0, ALTEZZA_PORTA + spazioSopraPorta / 2, zMuro, 0);
+}
+creaParteConVarco(-meta); // nord: ingresso
+creaParteConVarco(meta);  // sud: uscita
+
+creaParete(STANZA_LATO + MARGINE_ANGOLO, ALTEZZA, -meta, ALTEZZA / 2, 0, Math.PI / 2);
+creaParete(STANZA_LATO + MARGINE_ANGOLO, ALTEZZA,  meta, ALTEZZA / 2, 0, Math.PI / 2);
+
+/* elenco oggetti interagibili e sistema di collisione — identico
+   nel funzionamento a quello della biblioteca */
+const oggettiInterattivi = [];
+const materialiPulsanti = [];
+
+function registraInterattivo(mesh, dati) {
+  mesh.userData.interagibile = true;
+  Object.assign(mesh.userData, dati);
+  oggettiInterattivi.push(mesh);
+  const materiali = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  materiali.forEach(m => {
+    if (m && "emissive" in m) {
+      m.emissive = new THREE.Color(0xC48A28);
+      m.emissiveIntensity = 0.25;
+      materialiPulsanti.push(m);
+    }
+  });
+}
+
+const RAGGIO_GIOCATORE = 0.45;
+
+// fiamme (torce, candele) — tremolio animato nel loop di render;
+// ogni voce è { materiale, base, luce? } dove luce è una PointLight vera opzionale
+const fiamme = [];
+function registraFiamma(materiale, intensitaBase, luce) {
+  fiamme.push({
+    materiale, base: intensitaBase, luce: luce || null,
+    luceBase: luce ? luce.intensity : 0,
+    seme: Math.random() * 100
+  });
+}
+
+const MARGINE_PARETE = 1.3;
+const ingombri = [];
+
+function registraIngombro(oggetto3D, margineExtra = RAGGIO_GIOCATORE) {
+  oggetto3D.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(oggetto3D);
+  ingombri.push({
+    minX: box.min.x - margineExtra, maxX: box.max.x + margineExtra,
+    minZ: box.min.z - margineExtra, maxZ: box.max.z + margineExtra
+  });
+}
+
+function risolviPosizioneValida(x, z) {
+  let px = Math.max(-meta + MARGINE_PARETE, Math.min(meta - MARGINE_PARETE, x));
+  let pz = Math.max(-meta + MARGINE_PARETE, Math.min(meta - MARGINE_PARETE, z));
+  ingombri.forEach(r => {
+    if (px > r.minX && px < r.maxX && pz > r.minZ && pz < r.maxZ) {
+      const distSx = px - r.minX, distDx = r.maxX - px;
+      const distSu = pz - r.minZ, distGiu = r.maxZ - pz;
+      const minDist = Math.min(distSx, distDx, distSu, distGiu);
+      if (minDist === distSx) px = r.minX;
+      else if (minDist === distDx) px = r.maxX;
+      else if (minDist === distSu) pz = r.minZ;
+      else pz = r.maxZ;
+    }
+  });
+  return { x: px, z: pz };
+}
+
+/* ══════════════════════════════════════════
+   PORTE — convenzione unica per tutta la stanza: ogni oggetto
+   montato a parete usa un offset locale POSITIVO in z per sporgere
+   verso l'interno della stanza; la ry di montaggio si occupa di
+   orientare correttamente ciascuna parete (nord/sud/est/ovest).
+   ══════════════════════════════════════════ */
+function creaPorta(zMuro, ry, dati) {
+  const gruppo = new THREE.Group();
+  gruppo.position.set(0, 0, zMuro);
+  gruppo.rotation.y = ry;
+  scene.add(gruppo);
+
+  const porta = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, ALTEZZA_PORTA, 0.15),
+    new THREE.MeshStandardMaterial({ color: 0x3a2412 })
+  );
+  porta.position.set(0, ALTEZZA_PORTA / 2, 0.12);
+  gruppo.add(porta);
+  registraInterattivo(porta, dati);
+
+  const maniglia = new THREE.Mesh(
+    new THREE.BoxGeometry(0.12, 0.12, 0.12),
+    new THREE.MeshStandardMaterial({ color: 0xC48A28 })
+  );
+  maniglia.position.set(0.5, ALTEZZA_PORTA / 2, 0.2);
+  gruppo.add(maniglia);
+
+  return gruppo;
+}
+// ingresso (nord): sempre sbloccata, riporta alla biblioteca
+creaPorta(-meta, 0, { nome: "Porta d'ingresso", tipo: "porta-ingresso" });
+// uscita (sud): serratura numerica verso la stanza 3
+creaPorta(meta, Math.PI, { nome: "Serratura", tipo: "serratura" });
+
+/* ══════════════════════════════════════════
+   FINESTRE — stesso linguaggio della biblioteca (telaio + vetro con
+   cielo notturno), ma qui su pareti diverse: ovest ed est, negli
+   spazi liberi fra i quadri, invece che sulla parete sud.
+   ══════════════════════════════════════════ */
+function creaTexturaCielo(conLuna) {
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const grad = ctx.createLinearGradient(0, 0, 0, size);
+  grad.addColorStop(0, "#0B1730");
+  grad.addColorStop(1, "#223A5E");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  if (conLuna) {
+    ctx.fillStyle = "rgba(242,236,217,0.18)";
+    ctx.beginPath(); ctx.arc(92, 32, 22, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#F2ECD9";
+    ctx.beginPath(); ctx.arc(92, 32, 13, 0, Math.PI * 2); ctx.fill();
+  }
+  for (let i = 0; i < 45; i++) {
+    const sx = Math.random() * size, sy = Math.random() * size * 0.85;
+    const r = Math.random() * 1.2 + 0.3;
+    ctx.fillStyle = `rgba(255,255,255,${(0.35 + Math.random() * 0.6).toFixed(2)})`;
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+  }
+  return new THREE.CanvasTexture(canvas);
+}
+const texturaCieloConLuna = creaTexturaCielo(true);
+const texturaCieloSenzaLuna = creaTexturaCielo(false);
+
+function creaFinestra(x, z, ry, cielo) {
+  const gruppo = new THREE.Group();
+  gruppo.position.set(x, 2.1, z);
+  gruppo.rotation.y = ry || 0;
+  gruppo.translateZ(0.16);
+  scene.add(gruppo);
+
+  const matTelaio = new THREE.MeshStandardMaterial({ color: 0x3a2412 });
+  const telaio = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 0.08), matTelaio);
+  gruppo.add(telaio);
+
+  const vetro = new THREE.Mesh(
+    new THREE.BoxGeometry(1.32, 0.92, 0.03),
+    new THREE.MeshStandardMaterial({ map: cielo, emissive: 0x3A4A6A, emissiveIntensity: 0.5 })
+  );
+  vetro.position.z = 0.03;
+  gruppo.add(vetro);
+
+  const croceV = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.92, 0.05), matTelaio);
+  croceV.position.z = 0.04;
+  gruppo.add(croceV);
+  const croceH = new THREE.Mesh(new THREE.BoxGeometry(1.32, 0.06, 0.05), matTelaio);
+  croceH.position.z = 0.04;
+  gruppo.add(croceH);
+
+  const luce = new THREE.PointLight(0xAFC4E8, 0.4, 8);
+  luce.position.set(0, 0, 1.1);
+  gruppo.add(luce);
+
+  return gruppo;
+}
+// finestra sulla parete ovest e una su quella est, negli spazi liberi
+// fra i quadri (a differenza della biblioteca, qui non sulla parete sud)
+creaFinestra(-meta, 0.25, Math.PI / 2, texturaCieloConLuna);
+creaFinestra(meta, 5.75, -Math.PI / 2, texturaCieloSenzaLuna);
+
+/* ══════════════════════════════════════════
+   TORCE A PARETE — stesso identico linguaggio della biblioteca
+   (bracciolo + fiamma emissiva animata + luce calda). Quattro
+   torce, una per parete, a completare l'illuminazione insieme
+   al lampadario centrale.
+   ══════════════════════════════════════════ */
+function creaTorcia(x, z, ry) {
+  const gruppo = new THREE.Group();
+  gruppo.position.set(x, 2.3, z);
+  gruppo.rotation.y = ry || 0;
+  gruppo.translateZ(0.1);
+  scene.add(gruppo);
+
+  const bracciolo = new THREE.Mesh(
+    new THREE.BoxGeometry(0.1, 0.1, 0.35),
+    new THREE.MeshStandardMaterial({ color: 0x2a1c10 })
+  );
+  bracciolo.position.z = 0.15;
+  gruppo.add(bracciolo);
+
+  const manico = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.045, 0.4, 6),
+    new THREE.MeshStandardMaterial({ color: 0x3a2412 })
+  );
+  manico.rotation.x = Math.PI / 2;
+  manico.position.set(0, 0.1, 0.3);
+  gruppo.add(manico);
+
+  const matFiamma = new THREE.MeshStandardMaterial({
+    color: 0xFFA236, emissive: 0xFF7A1A, emissiveIntensity: 1
+  });
+  const fiamma = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.22, 8), matFiamma);
+  fiamma.position.set(0, 0.32, 0.3);
+  gruppo.add(fiamma);
+
+  const luce = new THREE.PointLight(0xFF9A3C, 0.85, 6);
+  luce.position.set(0, 0.32, 0.3);
+  gruppo.add(luce);
+
+  registraFiamma(matFiamma, 1, luce);
+  return gruppo;
+}
+creaTorcia(-2, -meta, 0);
+creaTorcia(2, meta, Math.PI);
+creaTorcia(-meta, -5, Math.PI / 2);
+creaTorcia(meta, -5, -Math.PI / 2);
+
+/* ══════════════════════════════════════════
+   LAMPADARIO — scende dal soffitto sotto il rosone, stesso
+   identico modello della biblioteca: catena, anello, 6 candele
+   con fiamma emissiva animata, unica luce calda principale.
+   ══════════════════════════════════════════ */
+const gruppoLampadario = new THREE.Group();
+gruppoLampadario.position.set(0, ALTEZZA - 0.1, 0);
+scene.add(gruppoLampadario);
+
+const catena = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.02, 0.02, 0.7, 6),
+  new THREE.MeshStandardMaterial({ color: 0x3a3226 })
+);
+catena.position.y = -0.35;
+gruppoLampadario.add(catena);
+
+const anelloLampadario = new THREE.Mesh(
+  new THREE.TorusGeometry(0.6, 0.045, 8, 20),
+  new THREE.MeshStandardMaterial({ color: 0x4a4030 })
+);
+anelloLampadario.position.y = -0.72;
+anelloLampadario.rotation.x = Math.PI / 2;
+gruppoLampadario.add(anelloLampadario);
+
+const matFiammaLampadario = new THREE.MeshStandardMaterial({
+  color: 0xFFB24A, emissive: 0xFF8C24, emissiveIntensity: 1
+});
+const nCandeleLampadario = 6;
+for (let i = 0; i < nCandeleLampadario; i++) {
+  const angolo = (i / nCandeleLampadario) * Math.PI * 2;
+  const cx = Math.cos(angolo) * 0.6, cz = Math.sin(angolo) * 0.6;
+  const candela = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.03, 0.16, 6),
+    new THREE.MeshStandardMaterial({ color: 0xEADFC0 })
+  );
+  candela.position.set(cx, -0.64, cz);
+  gruppoLampadario.add(candela);
+  const fiammaCandela = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.11, 6), matFiammaLampadario);
+  fiammaCandela.position.set(cx, -0.53, cz);
+  gruppoLampadario.add(fiammaCandela);
+}
+
+const luceLampadario = new THREE.PointLight(0xFFC27A, 1.3, 18);
+luceLampadario.position.y = -0.68;
+gruppoLampadario.add(luceLampadario);
+
+registraFiamma(matFiammaLampadario, 1, luceLampadario);
+
+/* ══════════════════════════════════════════
+   QUADRI — lungo tutte le pareti, dimensioni e stili diversi.
+   4 sono gli enigmi (bagliore dorato pulsante), gli altri 8 sono
+   puramente decorativi (paesaggi, astratti, figure stilizzate).
+   ══════════════════════════════════════════ */
+function creaQuadro(x, z, ry, larghezza, altezzaQuadro, texture, opzioni) {
+  opzioni = opzioni || {};
+  const gruppo = new THREE.Group();
+  gruppo.position.set(x, opzioni.centroY || 2.0, z);
+  gruppo.rotation.y = ry;
+  // il muro ha spessore 0.2 (±0.1 dal piano centrale): senza questo
+  // spostamento l'intero quadro restava incassato dentro il muro,
+  // invisibile. translateZ si muove lungo l'asse locale dell'oggetto,
+  // quindi funziona automaticamente su qualunque parete/rotazione.
+  gruppo.translateZ(0.16);
+  scene.add(gruppo);
+
+  const cornice = new THREE.Mesh(
+    new THREE.BoxGeometry(larghezza + 0.14, altezzaQuadro + 0.14, 0.07),
+    new THREE.MeshStandardMaterial({ color: opzioni.coloreCornice || 0x4a3018 })
+  );
+  gruppo.add(cornice);
+
+  const tela = new THREE.Mesh(
+    new THREE.BoxGeometry(larghezza, altezzaQuadro, 0.03),
+    new THREE.MeshStandardMaterial({ map: texture })
+  );
+  // offset positivo = verso l'interno della stanza (vedi convenzione sopra)
+  tela.position.z = 0.055;
+  gruppo.add(tela);
+
+  if (opzioni.interattivo) registraInterattivo(tela, opzioni.dati);
+
+  return gruppo;
+}
+
+const CORNICI = [0x4a3018, 0x2a2018, 0x5a4028];
+function coloreCornice() { return CORNICI[Math.floor(Math.random() * CORNICI.length)]; }
+
+// --- 4 quadri-enigma: 2 sulla parete ovest, 2 sulla parete est ---
+creaQuadro(-meta, -8, Math.PI / 2, 1.1, 1.4, creaTexturaAstratto(),
+  { interattivo: true, coloreCornice: 0xC48A28, dati: { nome: "Quadro — pagina 12", tipo: "quadro-enigma", quiz: NUMERI_STANZA[0] } });
+creaQuadro(-meta, 8.5, Math.PI / 2, 1.1, 1.4, creaTexturaAstratto(),
+  { interattivo: true, coloreCornice: 0xC48A28, dati: { nome: "Quadro — pagina 19", tipo: "quadro-enigma", quiz: NUMERI_STANZA[1] } });
+creaQuadro(meta, -8, -Math.PI / 2, 1.1, 1.4, creaTexturaAstratto(),
+  { interattivo: true, coloreCornice: 0xC48A28, dati: { nome: "Quadro — pagina 27", tipo: "quadro-enigma", quiz: NUMERI_STANZA[2] } });
+creaQuadro(meta, 8.5, -Math.PI / 2, 1.1, 1.4, creaTexturaAstratto(),
+  { interattivo: true, coloreCornice: 0xC48A28, dati: { nome: "Quadro — pagina 33", tipo: "quadro-enigma", quiz: NUMERI_STANZA[3] } });
+
+// --- 8 quadri decorativi: 2 a ovest, 2 a est, 2 a nord, 2 a sud ---
+creaQuadro(-meta, -2.5, Math.PI / 2, 0.9, 1.1, creaTexturaPaesaggio(), { coloreCornice: coloreCornice() });
+creaQuadro(-meta, 3, Math.PI / 2, 1.3, 0.95, creaTexturaFigura(), { coloreCornice: coloreCornice() });
+creaQuadro(meta, -2.5, -Math.PI / 2, 0.9, 1.1, creaTexturaPaesaggio(), { coloreCornice: coloreCornice() });
+creaQuadro(meta, 3, -Math.PI / 2, 1.3, 0.95, creaTexturaFigura(), { coloreCornice: coloreCornice() });
+
+creaQuadro(-5, -meta, 0, 1.2, 0.9, creaTexturaPaesaggio(), { coloreCornice: coloreCornice() });
+creaQuadro(5, -meta, 0, 0.85, 1.3, creaTexturaFigura(), { coloreCornice: coloreCornice() });
+creaQuadro(-5, meta, Math.PI, 0.95, 1.15, creaTexturaAstratto(), { coloreCornice: coloreCornice() });
+creaQuadro(5, meta, Math.PI, 1.15, 0.95, creaTexturaPaesaggio(), { coloreCornice: coloreCornice() });
+
+/* ══════════════════════════════════════════
+   TAVOLO LUNGO CENTRALE — con sedie intorno e un'apparecchiatura
+   parziale (piatti, resti di cibo, calici). Due oggetti sul tavolo
+   sono interagibili ma di scopo non ancora deciso (vedi sopra).
+   ══════════════════════════════════════════ */
+const matLegnoScuro = new THREE.MeshStandardMaterial({ color: 0x3a2412 });
+const matLegnoChiaro = new THREE.MeshStandardMaterial({ color: 0x6b4a2c });
+
+const TAVOLO_LUNGHEZZA = 9, TAVOLO_LARGHEZZA = 1.5;
+
+function costruisciSedia() {
+  const s = new THREE.Group();
+  const sedile = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.42), matLegnoChiaro);
+  sedile.position.y = 0.46;
+  s.add(sedile);
+  const schienale = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.5, 0.06), matLegnoScuro);
+  schienale.position.set(0, 0.72, -0.19);
+  s.add(schienale);
+  const gambaGeo = new THREE.BoxGeometry(0.05, 0.46, 0.05);
+  [[-0.17,-0.17],[0.17,-0.17],[-0.17,0.17],[0.17,0.17]].forEach(([gx,gz]) => {
+    const gm = new THREE.Mesh(gambaGeo, matLegnoScuro);
+    gm.position.set(gx, 0.23, gz);
+    s.add(gm);
+  });
+  return s;
+}
+
+const gruppoTavolo = new THREE.Group();
+scene.add(gruppoTavolo);
+
+const piano = new THREE.Mesh(new THREE.BoxGeometry(TAVOLO_LARGHEZZA, 0.09, TAVOLO_LUNGHEZZA), matLegnoChiaro);
+piano.position.y = 0.78;
+gruppoTavolo.add(piano);
+
+const gambaTavoloGeo = new THREE.BoxGeometry(0.12, 0.76, 0.12);
+[-1, 1].forEach(latoX => {
+  for (let zg = -TAVOLO_LUNGHEZZA / 2 + 0.6; zg < TAVOLO_LUNGHEZZA / 2; zg += 1.8) {
+    const gamba = new THREE.Mesh(gambaTavoloGeo, matLegnoScuro);
+    gamba.position.set(latoX * (TAVOLO_LARGHEZZA / 2 - 0.1), 0.38, zg);
+    gruppoTavolo.add(gamba);
+  }
+});
+
+// piatti, resti di cibo e calici lungo il tavolo (decorativi, apparecchiatura parziale)
+const matPiatto = new THREE.MeshStandardMaterial({ color: 0xE8DEC8 });
+const matCibo = [
+  new THREE.MeshStandardMaterial({ color: 0x8B3A2A }), // arrosto/carne
+  new THREE.MeshStandardMaterial({ color: 0xC9A227 }), // pane/formaggio
+  new THREE.MeshStandardMaterial({ color: 0x5A6B3A })  // verdure
+];
+const matCalice = new THREE.MeshStandardMaterial({ color: 0x8a7a5a });
+
+const postiTavola = [];
+for (let zp = -TAVOLO_LUNGHEZZA / 2 + 1; zp < TAVOLO_LUNGHEZZA / 2; zp += 1.3) {
+  postiTavola.push({ x: -TAVOLO_LARGHEZZA / 2 + 0.32, z: zp });
+  postiTavola.push({ x: TAVOLO_LARGHEZZA / 2 - 0.32, z: zp });
+}
+// apparecchiatura solo parziale: saltiamo qualche posto a caso
+postiTavola.forEach(posto => {
+  if (Math.random() < 0.35) return; // posto vuoto, non apparecchiato
+  const piatto = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.14, 0.02, 12), matPiatto);
+  piatto.position.set(posto.x, 0.835, posto.z);
+  gruppoTavolo.add(piatto);
+  if (Math.random() < 0.7) {
+    const cibo = new THREE.Mesh(
+      new THREE.SphereGeometry(0.06 + Math.random() * 0.03, 8, 6),
+      matCibo[Math.floor(Math.random() * matCibo.length)]
+    );
+    cibo.position.set(posto.x + (Math.random() - 0.5) * 0.06, 0.86, posto.z + (Math.random() - 0.5) * 0.06);
+    cibo.scale.y = 0.6;
+    gruppoTavolo.add(cibo);
+  }
+  if (Math.random() < 0.5) {
+    const calice = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.12, 8), matCalice);
+    calice.position.set(posto.x - 0.15 * Math.sign(posto.x || 1), 0.885, posto.z);
+    gruppoTavolo.add(calice);
+  }
+});
+
+// i due oggetti "misteriosi": un piatto e un calice riconoscibili,
+// leggermente in rilievo rispetto agli altri, con bagliore dorato
+const piattoMisterioso = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.17, 0.15, 0.025, 12),
+  new THREE.MeshStandardMaterial({ color: 0xE8DEC8 })
+);
+piattoMisterioso.position.set(-TAVOLO_LARGHEZZA / 2 + 0.32, 0.84, -TAVOLO_LUNGHEZZA / 2 + 1);
+gruppoTavolo.add(piattoMisterioso);
+registraInterattivo(piattoMisterioso, { nome: "Piatto", tipo: "misterioso", info: PIATTO_MISTERIOSO });
+
+const caliceMisterioso = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.04, 0.05, 0.14, 8),
+  new THREE.MeshStandardMaterial({ color: 0x9a8a6a })
+);
+caliceMisterioso.position.set(TAVOLO_LARGHEZZA / 2 - 0.32, 0.9, TAVOLO_LUNGHEZZA / 2 - 1);
+gruppoTavolo.add(caliceMisterioso);
+registraInterattivo(caliceMisterioso, { nome: "Calice", tipo: "misterioso", info: CALICE_MISTERIOSO });
+
+registraIngombro(gruppoTavolo);
+
+// sedie intorno al tavolo, spaziatura leggermente irregolare per non
+// sembrare "a specchio"
+const passiSedie = [-3.6, -2.5, -1.2, 0.2, 1.5, 2.8, 3.9];
+passiSedie.forEach((zs, i) => {
+  const lato = i % 2 === 0 ? -1 : 1;
+  const sedia = costruisciSedia();
+  sedia.position.set(lato * (TAVOLO_LARGHEZZA / 2 + 0.5 + Math.random() * 0.1), 0, zs + (Math.random() - 0.5) * 0.2);
+  sedia.rotation.y = lato > 0 ? -Math.PI / 2 + (Math.random() - 0.5) * 0.1 : Math.PI / 2 + (Math.random() - 0.5) * 0.1;
+  scene.add(sedia);
+  registraIngombro(sedia, 0.15);
+});
+
+/* ══════════════════════════════════════════
+   MOVIMENTO A CLICK
+   ══════════════════════════════════════════ */
+let target = camera.position.clone();
+let inMovimento = false;
+
+const raycaster = new THREE.Raycaster();
+const puntatore = new THREE.Vector2();
+
+function pickGroundAt(clientX, clientY) {
+  puntatore.x = (clientX / innerWidth) * 2 - 1;
+  puntatore.y = -(clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(puntatore, camera);
+  const hit = raycaster.intersectObject(pavimento)[0];
+  return hit ? hit.point : null;
+}
+
+function pickOggetto(clientX, clientY) {
+  puntatore.x = (clientX / innerWidth) * 2 - 1;
+  puntatore.y = -(clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(puntatore, camera);
+  const hits = raycaster.intersectObjects(oggettiInterattivi, false);
+  return hits[0] ? hits[0].object : null;
+}
+
+/* ══════════════════════════════════════════
+   SGUARDO A TRASCINAMENTO — camera inizialmente rivolta verso sud
+   (yaw = π), cioè verso l'interno della stanza invece che verso la
+   porta d'ingresso appena varcata
+   ══════════════════════════════════════════ */
+let yaw = Math.PI, pitch = 0;
+let trascinando = false, ultimoX = 0, ultimoY = 0, mosso = false;
+let gestoIniziatoSulCanvas = false;
+
+const canvas = document.getElementById("canvas3d");
+
+function inizioTocco(x, y) {
+  gestoIniziatoSulCanvas = true;
+  trascinando = true; mosso = false; ultimoX = x; ultimoY = y;
+}
+function muoviTocco(x, y) {
+  if (!trascinando) return;
+  const dx = x - ultimoX, dy = y - ultimoY;
+  if (Math.abs(dx) + Math.abs(dy) > 6) mosso = true;
+  yaw += dx * 0.004;
+  pitch = Math.max(-1, Math.min(1, pitch + dy * 0.004));
+  ultimoX = x; ultimoY = y;
+}
+function fineTocco(x, y) {
+  if (!gestoIniziatoSulCanvas) return;
+  gestoIniziatoSulCanvas = false;
+  trascinando = false;
+  if (document.getElementById("velo").classList.contains("attivo")) return;
+  if (!mosso) gestisciClick(x, y);
+}
+
+canvas.addEventListener("mousedown", e => inizioTocco(e.clientX, e.clientY));
+canvas.addEventListener("mousemove", e => muoviTocco(e.clientX, e.clientY));
+addEventListener("mouseup", e => fineTocco(e.clientX, e.clientY));
+
+canvas.addEventListener("touchstart", e => { const t = e.touches[0]; inizioTocco(t.clientX, t.clientY); }, { passive:true });
+canvas.addEventListener("touchmove", e => { const t = e.touches[0]; muoviTocco(t.clientX, t.clientY); }, { passive:true });
+canvas.addEventListener("touchend", e => { const t = e.changedTouches[0]; fineTocco(t.clientX, t.clientY); });
+
+function gestisciClick(x, y) {
+  const oggetto = pickOggetto(x, y);
+  if (oggetto) {
+    const posMondo = new THREE.Vector3();
+    oggetto.getWorldPosition(posMondo);
+    const distanza = camera.position.distanceTo(posMondo);
+    if (distanza <= RAGGIO_INTERAZIONE) {
+      apriInterazione(oggetto);
+    } else {
+      mostraSuggerimento("Avvicinati per interagire");
+    }
+    return;
+  }
+  const punto = pickGroundAt(x, y);
+  if (punto) {
+    const valido = risolviPosizioneValida(punto.x, punto.z);
+    target = new THREE.Vector3(valido.x, ALTEZZA_OCCHI, valido.z);
+    inMovimento = true;
+  }
+}
+
+function mostraSuggerimento(testo) {
+  const el = document.getElementById("suggerimento");
+  el.textContent = testo;
+  el.classList.add("attivo");
+  clearTimeout(window._tSuggerimento);
+  window._tSuggerimento = setTimeout(() => el.classList.remove("attivo"), 1400);
+}
+
+/* ══════════════════════════════════════════
+   LOOP DI RENDER
+   ══════════════════════════════════════════ */
+function anima() {
+  requestAnimationFrame(anima);
+
+  if (inMovimento) {
+    camera.position.lerp(target, 0.045);
+    if (camera.position.distanceTo(target) < 0.05) inMovimento = false;
+  }
+
+  const posValida = risolviPosizioneValida(camera.position.x, camera.position.z);
+  camera.position.x = posValida.x;
+  camera.position.z = posValida.z;
+
+  camera.rotation.order = "YXZ";
+  camera.rotation.y = yaw;
+  camera.rotation.x = pitch;
+
+  const intensita = 0.25 + 0.15 * Math.sin(performance.now() * 0.003);
+  materialiPulsanti.forEach(m => { m.emissiveIntensity = intensita; });
+
+  const t = performance.now() * 0.001;
+  fiamme.forEach(f => {
+    const tremolio = f.base * (0.82 + 0.18 * Math.sin(t * 9 + f.seme) + 0.06 * Math.sin(t * 23 + f.seme));
+    f.materiale.emissiveIntensity = tremolio;
+    if (f.luce) f.luce.intensity = f.luceBase * (0.8 + 0.2 * Math.sin(t * 9 + f.seme));
+  });
+
+  renderer.render(scene, camera);
+}
+anima();
+
+/* ══════════════════════════════════════════
+   AVVIO
+   ══════════════════════════════════════════ */
+async function avviaStanza() {
+  mostraPopup(`<div class="nome">― Caricamento ―</div><div class="testo corsivo">Sto entrando nella partita ${CODICE_PARTITA}…</div>`);
+  await caricaStatoRemoto();
+  iscrivitiAggiornamenti();
+  chiudiPopup();
+  iniettaControlliFissi("stanza1biblioteca.html");
+}
+
+document.addEventListener("DOMContentLoaded", avviaStanza);
+</script>
+</body>
+</html>
