@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<!--
+  Escape room 3D — Il Castello di Roccabruna
+  Un progetto di Dott. Magri Gregorio — Psicologo/Psicoterapeuta
+  Cooperativa/Istituto Minotauro — Milano — © 2026 — Tutti i diritti riservati
+-->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Stanza 4 — Il Tesoro 3D</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rye&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+if(!sessionStorage.getItem("codicePartita")) location.replace("index.html");
+</script>
+<style>
+:root { --gold:#C48A28; --cream:#F2DDAA; --panel:#150C03; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:#000; overflow:hidden; font-family:Palatino,Georgia,serif; }
+#canvas3d { position:fixed; inset:0; display:block; touch-action:none; }
+
+#mira {
+  position:fixed; top:50%; left:50%; width:6px; height:6px; margin:-3px;
+  border-radius:50%; background:rgba(242,221,170,.7); pointer-events:none; z-index:50;
+}
+#suggerimento {
+  position:fixed; bottom:26px; left:50%; transform:translateX(-50%);
+  background:rgba(21,12,3,.8); border:1px solid var(--gold); color:var(--cream);
+  padding:8px 18px; border-radius:16px; font-size:13px; opacity:0; transition:opacity .25s;
+  pointer-events:none; z-index:60; white-space:nowrap;
+}
+#suggerimento.attivo { opacity:1; }
+
+#velo {
+  position:fixed; inset:0; background:rgba(0,0,0,.78);
+  display:none; align-items:center; justify-content:center; z-index:200;
+}
+#velo.attivo { display:flex; }
+#popup {
+  background:var(--panel); border:2px solid var(--gold); border-radius:6px;
+  padding:28px 34px; max-width:460px; width:90%; color:var(--cream);
+  font-size:17px; line-height:1.6; max-height:85vh; overflow-y:auto; text-align:center;
+}
+#popup .nome { color:var(--gold); font-size:20px; margin-bottom:12px; letter-spacing:.05em; }
+#popup .testo { margin-bottom:18px; font-style:italic; }
+#popup .corsivo { font-style:italic; opacity:.7; }
+#popup .bottoni { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+#popup button, #popup .opzione {
+  padding:9px 22px; font-family:inherit; font-size:15px; cursor:pointer;
+  border-radius:3px; color:var(--cream); background:#241506; border:1px solid var(--gold);
+}
+#popup .si { background:#382010; border:2px solid var(--gold); }
+#popup .no { background:#380A08; border:2px solid #7A2A1A; }
+.suggerimento-testo { font-size:12px; opacity:.55; margin-top:12px; font-style:italic; }
+
+.taccuino-feed { max-height:280px; overflow-y:auto; text-align:left; margin-bottom:12px; }
+.voce-feed { font-size:14px; padding:7px 4px; border-bottom:1px solid rgba(196,138,40,.15); line-height:1.4; }
+.voce-feed.indizio { opacity:.8; }
+.voce-feed.messaggio { color:var(--gold); }
+.etichetta-feed { margin-right:6px; }
+.input-messaggio-riga { display:flex; gap:8px; border-top:1px solid rgba(196,138,40,.25); padding-top:10px; }
+.input-messaggio-riga input {
+  flex:1; padding:10px; background:#0A0604; border:1px solid var(--gold); border-radius:4px;
+  color:var(--cream); font-family:inherit; font-size:14px;
+}
+.input-messaggio-riga button {
+  padding:10px 16px; background:#382010; border:2px solid var(--gold); border-radius:4px;
+  color:var(--cream); cursor:pointer; font-family:inherit;
+}
+
+.controllo-fisso {
+  position:fixed; top:18px; z-index:150; width:46px; height:46px; border-radius:50%;
+  background:rgba(21,12,3,.85); border:2px solid var(--gold); color:var(--cream);
+  font-size:19px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  box-shadow:0 2px 10px rgba(0,0,0,.5);
+}
+.controllo-fisso.sinistra { left:18px; }
+.controllo-fisso.destra { right:18px; }
+.controllo-fisso:active { transform:scale(.94); }
+.controllo-fisso:disabled { opacity:.3; cursor:default; }
+.badge-codice {
+  position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:150;
+  background:rgba(21,12,3,.8); border:1px solid var(--gold); color:var(--gold);
+  font-size:12px; letter-spacing:.15em; padding:6px 14px; border-radius:14px;
+}
+
+.pagina-libro {
+  color:#2E1F10; border-radius:3px; margin:-28px -34px -28px;
+  padding:30px 34px 16px; text-align:left; font-family:Palatino,Georgia,serif;
+  text-shadow:0 1px 0 rgba(255,255,255,.45);
+  background:linear-gradient(180deg,#EADFC0,#DCCBA0);
+}
+.pagina-libro .intestazione-pagina {
+  font-size:12px; letter-spacing:.15em; text-transform:uppercase; opacity:.55; margin-bottom:14px;
+}
+.pagina-libro .domanda-testo { font-size:16px; line-height:1.75; margin-bottom:10px; }
+.pagina-libro .chiudi-pagina {
+  display:block; margin:16px auto 0; background:#3B2A18; color:#F0E4C8; border:none;
+  padding:9px 24px; border-radius:3px; font-family:inherit; font-size:14px; cursor:pointer;
+}
+.lettera-nascosta { font-family:'Rye', cursive; font-weight:bold; }
+
+.inputEnigmaStyle {
+  width:100%; padding:10px 12px; font-family:Palatino,Georgia,serif; font-size:15px;
+  background:#1A0E04; border:1px solid var(--gold); color:var(--cream); border-radius:3px;
+  outline:none; letter-spacing:.02em; margin-top:4px;
+}
+.inputEnigmaStyle:focus { border-color:#E8AA48; box-shadow:0 0 8px rgba(196,138,40,.3); }
+.labelEnigma { text-align:left; font-size:14px; color:var(--gold); margin:16px 0 4px; display:block; }
+#feedbackEnigma { min-height:22px; margin-top:8px; font-size:13px; font-style:italic; color:#9A7A4A; text-align:left; }
+@keyframes scuotiPopup {
+  0%,100%{transform:translateX(0);} 20%{transform:translateX(-8px);} 40%{transform:translateX(8px);}
+  60%{transform:translateX(-5px);} 80%{transform:translateX(5px);}
+}
+.scuoti-popup { animation: scuotiPopup .4s ease; }
+
+/* ── SCHERMATA FINALE (report semplificato) ── */
+#scTesoro {
+  position:fixed; inset:0; display:none; flex-direction:column; align-items:center; gap:18px;
+  text-align:center; padding:28px 20px 40px; color:var(--cream);
+  background:radial-gradient(ellipse at center,#1E1408 0%,#050204 80%);
+  z-index:210; overflow-y:auto;
+}
+#scTesoro.attivo { display:flex; }
+#scTesoro h2 { color:var(--gold); margin:0; font-weight:normal; letter-spacing:.1em; font-size:clamp(18px,2.8vw,26px); }
+#scTesoro .intro { max-width:520px; line-height:1.7; font-style:italic; opacity:.9; margin:0; font-size:clamp(14px,1.8vw,16px); }
+.reportCard { width:100%; max-width:560px; background:rgba(21,12,3,.75); border:1px solid rgba(196,138,40,.35); border-radius:4px; padding:18px 22px; text-align:left; }
+.reportCard h3 { color:var(--gold); font-weight:normal; letter-spacing:.12em; font-size:13px; text-transform:uppercase; margin:0 0 14px; border-bottom:1px solid rgba(196,138,40,.2); padding-bottom:8px; }
+.reportRiga { display:flex; gap:8px; align-items:baseline; font-size:13px; margin-bottom:7px; line-height:1.5; }
+.reportRiga .eLabel { color:#7A6A4A; min-width:160px; flex-shrink:0; }
+.reportRiga .eValore { color:var(--cream); }
+.eValore.pos { color:#8ABF68; }
+.eValore.neu { color:#A09070; }
+.skillBlocco { margin-bottom:14px; }
+.skillBlocco:last-child { margin-bottom:0; }
+.skillLabel { font-size:13px; color:var(--gold); letter-spacing:.06em; margin-bottom:4px; }
+.skillText { font-size:13px; font-style:italic; color:#B0A080; line-height:1.65; margin:0; }
+.promptNote { font-size:12px; color:#8A7A5A; margin:0 0 10px; line-height:1.5; }
+#promptAI { font-family:monospace; font-size:11px; background:#080503; border:1px solid rgba(196,138,40,.2); border-radius:3px; padding:12px 14px; color:#8A7A5A; line-height:1.7; white-space:pre-wrap; text-align:left; max-height:160px; overflow-y:auto; }
+.btnCopia { margin-top:10px; padding:7px 18px; font-family:Palatino,Georgia,serif; font-size:13px; cursor:pointer; border-radius:3px; background:#1A2018; color:var(--cream); border:1px solid var(--gold); letter-spacing:.04em; }
+.btnCopia:hover { background:#253022; }
+.btnTorna { padding:9px 22px; font-family:Palatino,Georgia,serif; font-size:15px; cursor:pointer; border-radius:3px; background:#382010; color:var(--cream); border:2px solid var(--gold); letter-spacing:.04em; }
+</style>
+</head>
+<body>
+
+<canvas id="canvas3d"></canvas>
+<div id="mira"></div>
+<div id="suggerimento"></div>
+<div id="velo"><div id="popup"></div></div>
+<div id="scTesoro"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script>
+
+/* ══════════════════════════════════════════
+   CONNESSIONE SUPABASE E STATO CONDIVISO
+   (identico alle altre stanze — qui, a differenza del file
+   originale "tesoro.html" che era single-player con stato in
+   localStorage/URL, la stanza finale è collegata al gruppo come
+   le altre: chi esplora aggiunge indizi condivisi, chi risolve
+   il baule lo apre per tutti)
+   ══════════════════════════════════════════ */
+
+const SUPABASE_URL = "https://vozzdhpwiauchvznfvsi.supabase.co";
+const SUPABASE_KEY = "sb_publishable_aLZfS_idBIXD1mEixlnGsA_FF70VGni";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const CODICE_PARTITA = sessionStorage.getItem("codicePartita");
+
+let statoLocale = { indizi: [], risposte: {}, serrature_sbloccate: [], messaggi: [] };
+let statoCaricato = false;
+
+async function caricaStatoRemoto() {
+  const { data, error } = await sb.from("partite").select("*").eq("codice", CODICE_PARTITA).maybeSingle();
+  if (!data) {
+    const nuova = { codice: CODICE_PARTITA, indizi: [], risposte: {}, serrature_sbloccate: [], messaggi: [] };
+    await sb.from("partite").insert(nuova);
+    statoLocale = nuova;
+  } else {
+    statoLocale = data;
+    if (!statoLocale.messaggi) statoLocale.messaggi = [];
+  }
+  statoCaricato = true;
+}
+
+async function salvaStatoRemoto() {
+  const { codice, indizi, risposte, serrature_sbloccate, messaggi } = statoLocale;
+  await sb.from("partite").update({ indizi, risposte, serrature_sbloccate, messaggi,
+    aggiornato_il: new Date().toISOString() }).eq("codice", codice);
+}
+
+function iscrivitiAggiornamenti() {
+  sb.channel("partita-" + CODICE_PARTITA)
+    .on("postgres_changes",
+      { event: "UPDATE", schema: "public", table: "partite", filter: `codice=eq.${CODICE_PARTITA}` },
+      payload => {
+        statoLocale = payload.new;
+        if (!statoLocale.messaggi) statoLocale.messaggi = [];
+        aggiornaFeedTaccuino();
+        if (typeof STANZA_ID !== "undefined" && typeof impostaCoperchio === "function"
+            && serraturaSbloccata(STANZA_ID)) {
+          impostaCoperchio(true);
+        }
+      })
+    .subscribe();
+}
+
+function aggiungiIndizio(id, testo, stanza) {
+  if (!statoLocale.indizi.find(i => i.id === id)) {
+    statoLocale.indizi.push({ id, testo, stanza, quando: Date.now() });
+    salvaStatoRemoto();
+  }
+}
+function serraturaSbloccata(stanzaId) {
+  return statoLocale.serrature_sbloccate.includes(stanzaId);
+}
+function sbloccaSerratura(stanzaId) {
+  if (!statoLocale.serrature_sbloccate.includes(stanzaId)) {
+    statoLocale.serrature_sbloccate.push(stanzaId);
+    salvaStatoRemoto();
+  }
+}
+
+function escapeHtml(str) {
+  return (str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+/* ══════════════════════════════════════════
+   POPUP / TACCUINO — identici alle altre stanze
+   ══════════════════════════════════════════ */
+function mostraPopup(html) {
+  document.getElementById("popup").innerHTML = html;
+  document.getElementById("velo").classList.add("attivo");
+}
+function chiudiPopup() {
+  document.getElementById("velo").classList.remove("attivo");
+  document.getElementById("popup").innerHTML = "";
+}
+document.addEventListener("DOMContentLoaded", () => {
+  const velo = document.getElementById("velo");
+  velo.addEventListener("click", e => { if (e.target === velo) chiudiPopup(); });
+});
+
+function costruisciFeedHtml() {
+  const voci = [
+    ...statoLocale.indizi.map(i => ({ tipo:"indizio", testo:`${i.stanza} — ${i.testo}`, quando:i.quando||0 })),
+    ...(statoLocale.messaggi||[]).map(m => ({ tipo:"messaggio", testo:m.testo, quando:m.quando||0 }))
+  ].sort((a,b) => a.quando - b.quando);
+  if (!voci.length) return `<div class="testo corsivo">Ancora nessun indizio né messaggio.</div>`;
+  return voci.map(v => `
+    <div class="voce-feed ${v.tipo}">
+      <span class="etichetta-feed">${v.tipo === "indizio" ? "📖" : "💬"}</span>${escapeHtml(v.testo)}
+    </div>
+  `).join("");
+}
+function aggiornaFeedTaccuino() {
+  const el = document.getElementById("listaFeed");
+  if (!el) return;
+  el.innerHTML = costruisciFeedHtml();
+  el.scrollTop = el.scrollHeight;
+}
+function apriTaccuino() {
+  mostraPopup(`
+    <div class="nome">― Taccuino condiviso ―</div>
+    <div class="taccuino-feed" id="listaFeed">${costruisciFeedHtml()}</div>
+    <div class="input-messaggio-riga">
+      <input type="text" id="inputMessaggio" placeholder="Scrivi un messaggio…"
+        onkeydown="if(event.key==='Enter')inviaMessaggio()">
+      <button onclick="inviaMessaggio()">Invia</button>
+    </div>
+    <div class="bottoni" style="margin-top:16px"><button class="si" onclick="chiudiPopup()">Chiudi</button></div>
+  `);
+  setTimeout(() => {
+    const el = document.getElementById("listaFeed");
+    if (el) el.scrollTop = el.scrollHeight;
+  }, 50);
+}
+function inviaMessaggio() {
+  const input = document.getElementById("inputMessaggio");
+  const testo = input.value.trim();
+  if (!testo) return;
+  if (!statoLocale.messaggi) statoLocale.messaggi = [];
+  statoLocale.messaggi.push({ testo, quando: Date.now() });
+  input.value = "";
+  salvaStatoRemoto();
+  aggiornaFeedTaccuino();
+}
+function iniettaControlliFissi(stanzaPrecedenteUrl) {
+  const div = document.createElement("div");
+  div.innerHTML = `
+    <button id="btnIndietro" class="controllo-fisso sinistra" title="Torna indietro">←</button>
+    <button id="btnTaccuino" class="controllo-fisso destra" title="Taccuino">📒</button>
+    <div class="badge-codice">Partita: ${CODICE_PARTITA}</div>
+  `;
+  document.body.appendChild(div);
+  const btnIndietro = document.getElementById("btnIndietro");
+  if (stanzaPrecedenteUrl) {
+    btnIndietro.addEventListener("click", () => { window.location.href = stanzaPrecedenteUrl; });
+  } else {
+    btnIndietro.disabled = true;
+  }
+  document.getElementById("btnTaccuino").addEventListener("click", apriTaccuino);
+}
+
+/* ══════════════════════════════════════════
+   CONTENUTI STANZA 4 — testi identici al file "tesoro.html"
+   originale (pergamene, scrittoio, monete, mobiletto, candele,
+   scrigno), tranne zaino e riferimenti a personaggi di altre
+   avventure, rimossi su richiesta.
+   ══════════════════════════════════════════ */
+
+const STANZA_ID = "stanza4";
+
+// stesso indovinello a lettere nascoste dell'originale: le lettere in
+// grassetto, lette in ordine, compongono "INCREDIBILMENTE" — è un vero
+// meccanismo di puzzle, non solo narrativo, quindi il testo resta invariato
+const TESTO_PERGAMENE = `Questo luogo ha qualcosa d<span class="lettera-nascosta">i</span> speciale che le parole non catturano.<br>
+La pietra stessa sembra respirare, se<span class="lettera-nascosta">n</span>za far rumore.<br>
+Chi vuole trovare deve imparare a cer<span class="lettera-nascosta">c</span>are in modo diverso.<br>
+Ogni anfratto di questo posto cu<span class="lettera-nascosta">r</span>a le proprie memorie.<br>
+Qu<span class="lettera-nascosta">e</span>ste stanze ricordano chi è passato prima di te.<br>
+Passa un <span class="lettera-nascosta">d</span>ecennio, poi un altro, eppure qualcosa resta uguale.<br>
+Il s<span class="lettera-nascosta">i</span>lenzio qui ha il peso delle cose non dette.<br>
+Ogni al<span class="lettera-nascosta">b</span>a nuova trova questo posto immutato.<br>
+La part<span class="lettera-nascosta">i</span>colarità di questo luogo non si spiega — si sente.<br>
+Nu<span class="lettera-nascosta">l</span>la qui è lasciato al caso.<br>
+Anni innu<span class="lettera-nascosta">m</span>erevoli di storia silenziosa aspettano di essere letti.<br>
+Ciò ch<span class="lettera-nascosta">e</span> sembra ovvio spesso nasconde la risposta.<br>
+Questo posto è sempre stato qui, dime<span class="lettera-nascosta">n</span>ticato dal mondo.<br>
+Il por<span class="lettera-nascosta">t</span>ale di questa stanza non si apre con una chiave.<br>
+Alla fin<span class="lettera-nascosta">e</span>, ciò che conta non è la meta ma il cammino percorso.`;
+
+const TESTI_HOTSPOT = {
+  pergamene: { nome:"Pergamene", testo: TESTO_PERGAMENE },
+  scrittoio: { nome:"Scrittoio", testo:
+    `― DIARIO DI UN SOLDATO, GIORNO IGNOTO ―<br><i>«Stanotte ho tenuto la mano di un compagno per ore. Non c'era niente da dire. Bastava restare lì, così.»</i><br><br>
+    ― LETTERA DI UNA MADRE ―<br><i>«Quando piange abbasso la fronte fino a toccare la sua. In quel momento il mondo finisce qui, e basta.»</i><br><br>
+    ― NOTA DI UN GUARITORE, SENZA DATA ―<br><i>«Il mio lavoro non è curare. È stare. Non davanti, non dietro. In quel posto esatto dove l'altro può sentirti senza cercarti.»</i><br><br>
+    <span style="opacity:.7">Tre voci. Una sola parola le descrive tutte.</span>` },
+  monete: { nome:"Monete", testo:
+    `Le monete più antiche portano incisa la stessa parola su ogni faccia. I mercanti la usavano per il primo affare, il più importante, quello che non si sbagliava.<br><br>
+    Su una moneta consumata, quasi illeggibile:<br><br>
+    <i>«Più del normale. Più di tanto. Una quercia lo è, rispetto a un seme. Un'impresa lo è, quando lascia il segno. Chi sono?»</i>` },
+  mobiletto: { nome:"Mobiletto", testo:
+    `Nel cassetto più in basso, un biglietto sgualcito.<br><br>
+    <i>«Sono nel grido di chi chiama aiuto nel buio. Sono nel vento che piega gli alberi ma non li spezza. Sono il nome che dai alle mura che proteggono e alla nota più alta che una campana può fare. Mi trovi nel castello e nel pugno chiuso, nella voce di chi non ha paura e nella roccia che non cede.<br><br>Chi sono?»</i>` },
+  candele: { nome:"Candele", testo:
+    `Tra le candele, un leggio con un frammento di partitura. Qualcuno studiava musica in questa stanza — o forse la ascoltava soltanto.<br><br>
+    Una parola che i musicisti conoscono bene.<br><br>
+    <i>«Non poco, non abbastanza. Questa.»</i>` },
+};
+
+const SCRIGNO_ISCRIZIONE =
+  `Inciso intorno alla serratura:<br><br><i>«Aprimi con quello che hai imparato, non con quello che hai trovato.»</i><br><br>
+  Più in basso, in caratteri più piccoli:<br><br>
+  <i>«Quattro parole possono essere una via alternativa, se non trovi la parola che tutto apre. Mettile insieme per costruire il titolo di un'opera di finzione moderna.»</i>`;
+
+// le due risposte accettate, invariate rispetto all'originale
+const RISPOSTA_A = "molto forte incredibilmente vicino";
+const RISPOSTA_C = "imparato";
+
+function normalizza(s) {
+  return s.trim().toLowerCase().replace(/[,;:!?.«»""'']/g, "").replace(/\s+/g, " ");
+}
+
+// soglia di esplorazione condivisa: come nell'originale, serve aver
+// esplorato almeno metà degli elementi (esclusi lo scrigno) prima che
+// lo scrigno accetti una risposta — qui però il conteggio è di gruppo,
+// riusando gli stessi indizi condivisi del taccuino
+const HOTSPOT_ID_PISTA = ["pergamene", "scrittoio", "monete", "mobiletto", "candele"];
+function hotspotVisitatiCount() {
+  return HOTSPOT_ID_PISTA.filter(id => statoLocale.indizi.some(i => i.id === id)).length;
+}
+function sogliaDiVisita() { return Math.floor(HOTSPOT_ID_PISTA.length / 2); }
+
+function apriHotspotNarrativo(id) {
+  const h = TESTI_HOTSPOT[id];
+  aggiungiIndizio(id, `${h.nome} osservato`, STANZA_ID);
+  mostraPopup(`
+    <div class="pagina-libro">
+      <div class="intestazione-pagina">${h.nome}</div>
+      <div class="domanda-testo">${h.testo}</div>
+      <button class="chiudi-pagina" onclick="chiudiPopup()">Chiudi</button>
+    </div>
+  `);
+}
+
+/* ── STATO LOCALE DI SESSIONE (per il report finale — personale,
+   non condiviso: ognuno vede le proprie statistiche di gioco, come
+   nell'originale) ── */
+let tentativiEnigma = 0;
+let clickTotali = 0;
+let inizioSessione = Date.now();
+let modoRisoluzione = null; // "completo" | "breve"
+
+function formatTempo(sec) {
+  if (!sec || sec <= 0) return "—";
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m > 0 ? `${m} min ${s} sec` : `${s} sec`;
+}
+
+function apriScrigno() {
+  if (serraturaSbloccata(STANZA_ID)) {
+    mostraPopup(`
+      <div class="nome">― Il baule ―</div>
+      <div class="testo">Il baule è già aperto. Il tesoro di questa sala è stato trovato.</div>
+      <div class="bottoni">
+        <button class="si" onclick="chiudiPopup(); mostraReportFinale()">Vedi il tuo racconto</button>
+        <button class="no" onclick="chiudiPopup()">Chiudi</button>
+      </div>
+    `);
+    return;
+  }
+  const visitati = hotspotVisitatiCount(), soglia = sogliaDiVisita();
+  if (visitati < soglia) {
+    mostraPopup(`
+      <div class="nome">― Baule ―</div>
+      <div class="testo corsivo">${SCRIGNO_ISCRIZIONE}</div>
+      <div class="suggerimento-testo">Il baule non cede. La stanza ha ancora qualcosa da dire — esplora ancora.</div>
+      <div class="bottoni"><button class="si" onclick="chiudiPopup()">Esploro ancora</button></div>
+    `);
+    return;
+  }
+  mostraPopup(`
+    <div class="nome">― Baule ―</div>
+    <div class="testo corsivo">${SCRIGNO_ISCRIZIONE}</div>
+    <label class="labelEnigma">La tua risposta:</label>
+    <input id="inputEnigma" type="text" class="inputEnigmaStyle"
+      placeholder="Scrivi qui…" autocomplete="off" autocorrect="off" spellcheck="false"
+      onkeydown="if(event.key==='Enter')verificaRisposta()">
+    <div id="feedbackEnigma"></div>
+    <div class="bottoni" style="margin-top:14px">
+      <button class="si" onclick="verificaRisposta()">Apri</button>
+      <button class="no" onclick="chiudiPopup()">Chiudi</button>
+    </div>
+  `);
+  setTimeout(() => { const i = document.getElementById("inputEnigma"); if (i) i.focus(); }, 120);
+}
+
+function verificaRisposta() {
+  if (serraturaSbloccata(STANZA_ID)) return;
+  const inp = document.getElementById("inputEnigma");
+  if (!inp) return;
+  const r = normalizza(inp.value);
+  if (!r) { document.getElementById("feedbackEnigma").textContent = "Scrivi qualcosa prima di provare."; return; }
+  if (r === normalizza(RISPOSTA_A)) { modoRisoluzione = "completo"; risolviScrigno(); return; }
+  if (r === RISPOSTA_C) { modoRisoluzione = "breve"; risolviScrigno(); return; }
+  tentativiEnigma++;
+  const fb = document.getElementById("feedbackEnigma");
+  const v = ["Il baule non reagisce.", "Niente. Forse cerchi ancora la risposta giusta invece di quella vera.",
+    "Ancora no. Rileggi l'iscrizione con attenzione.", "Il baule tace. La risposta è più vicina di quanto pensi.",
+    "Continua a cercare. A volte la risposta è già in quello che hai visto."];
+  fb.textContent = v[Math.min(tentativiEnigma - 1, v.length - 1)];
+  const box = document.querySelector("#popup");
+  box.classList.remove("scuoti-popup");
+  void box.offsetWidth;
+  box.classList.add("scuoti-popup");
+}
+
+function risolviScrigno() {
+  sbloccaSerratura(STANZA_ID);
+  impostaCoperchio(true);
+  chiudiPopup();
+  mostraReportFinale();
+}
+
+/* ══════════════════════════════════════════
+   REPORT FINALE — semplificato rispetto all'originale: niente
+   zaino né scelte di altre stanze (non esistono in questo
+   progetto), ma stessa logica adattata al gioco attuale:
+   esplorazione, gestione dell'errore, percorso alla soluzione.
+   ══════════════════════════════════════════ */
+function testoEsplorazione() {
+  const n = hotspotVisitatiCount();
+  if (n >= HOTSPOT_ID_PISTA.length)
+    return "Ha osservato ogni angolo della sala prima di tentare il baule — un'esplorazione completa, nulla lasciato al caso.";
+  return "Ha esplorato quanto bastava per tentare il baule, senza necessariamente osservare tutto. Una via efficiente più che esaustiva.";
+}
+function testoErrore(tentativi) {
+  if (tentativi === 0) return "Nessun tentativo a vuoto: la risposta è arrivata la prima volta.";
+  if (tentativi <= 2) return "Un paio di tentativi prima di trovare le parole giuste — l'errore ha avuto uno spazio piccolo ma presente.";
+  return "Diversi tentativi prima della soluzione. Il baule ha richiesto pazienza, e l'errore è stato un compagno di viaggio frequente.";
+}
+function testoMetodo(modo) {
+  return modo === "completo"
+    ? "Ha ricostruito il titolo per intero, mettendo insieme gli indizi sparsi nella sala."
+    : "Ha scelto la via più breve, rispondendo con la parola suggerita dall'iscrizione invece di ricostruire il titolo completo.";
+}
+
+function generaPromptAI(modo, tentativi, tempoTot, clickTot) {
+  const righe = [
+    "Sei Ser Cronaco, cantastorie del castello di Roccabruna.",
+    "Scrivi un racconto in prosa poetica (250-350 parole) sul momento in cui un gruppo di avventurieri ha trovato il tesoro custodito nell'ultima sala del castello.",
+    "",
+    "DATI DEL VIAGGIO:",
+    "• Enigma del baule: " + (modo === "completo" ? "risposta completa trovata (il titolo per intero)" : "risposta breve trovata (la parola chiave)") +
+      " — " + tentativi + " " + (tentativi === 1 ? "tentativo sbagliato" : "tentativi sbagliati") + " prima della soluzione",
+    "• Tempo impiegato in questa sala: " + (tempoTot > 0 ? formatTempo(tempoTot) : "non disponibile"),
+    "• Interazioni totali: " + (clickTot > 0 ? clickTot + " click" : "non disponibile"),
+    "",
+    "INDICAZIONI:",
+    "— Inizia con: «Nel castello di Roccabruna, dove ogni pietra custodisce una storia...»",
+    "— Non nominare oggetti o personaggi che non sono stati citati sopra.",
+    "— Concludi con: il vero tesoro non era oro, ma qualcosa di imparato lungo il cammino.",
+    "— Tono: epico ma umano, medievale ma comprensibile.",
+  ];
+  return righe.join("\n");
+}
+
+function copiaPrompt() {
+  const box = document.getElementById("promptAI"); if (!box) return;
+  const testo = box.textContent || box.innerText;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(testo).then(() => {
+      const btn = document.querySelector(".btnCopia");
+      if (btn) { btn.textContent = "✓ Copiato!"; setTimeout(() => { btn.textContent = "📋 Copia prompt"; }, 2200); }
+    });
+  }
+}
+
+function mostraReportFinale() {
+  const sc = document.getElementById("scTesoro");
+  const tempoTot = Math.round((Date.now() - inizioSessione) / 1000);
+  const modo = modoRisoluzione || "breve";
+  const dEnigma = modo === "completo" ? { t: "Titolo trovato (via completa)", c: "pos" } : { t: "Parola chiave (via breve)", c: "neu" };
+  const dTentativi = tentativiEnigma === 0 ? "nessuno" : String(tentativiEnigma);
+  const promptTesto = generaPromptAI(modo, tentativiEnigma, tempoTot, clickTotali);
+
+  sc.innerHTML = `
+    <h2>― Il Tesoro di Roccabruna ―</h2>
+    <p class="intro">${modo === "completo"
+      ? "Il baule si apre con un suono antico e definitivo. Avevi trovato il nome — quello che questa stanza aspettava da decenni di essere chiamato. Non c'era oro. C'era questa storia."
+      : "Il baule si apre. Hai letto l'iscrizione e hai risposto con quello che suggeriva. Forse è la risposta più onesta — o forse c'era anche un nome, nascosto in questa stanza, ancora in attesa."}</p>
+
+    <div class="reportCard">
+      <h3>Il tuo viaggio in questa sala</h3>
+      <div class="reportRiga"><span class="eLabel">Enigma del baule</span><span class="eValore ${dEnigma.c}">${dEnigma.t}</span></div>
+      <div class="reportRiga"><span class="eLabel">Tentativi sbagliati</span><span class="eValore neu">${dTentativi}</span></div>
+      <div class="reportRiga" style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(196,138,40,.15)">
+        <span class="eLabel">⏱ Tempo in questa sala</span><span class="eValore">${formatTempo(tempoTot)}</span>
+      </div>
+      <div class="reportRiga"><span class="eLabel">🖱 Interazioni</span><span class="eValore">${clickTotali}</span></div>
+    </div>
+
+    <div class="reportCard">
+      <h3>Soft skills emerse</h3>
+      <div class="skillBlocco"><p class="skillLabel">🔍 Esplorazione</p><p class="skillText">${testoEsplorazione()}</p></div>
+      <div class="skillBlocco"><p class="skillLabel">🌱 Gestione dell'errore</p><p class="skillText">${testoErrore(tentativiEnigma)}</p></div>
+      <div class="skillBlocco"><p class="skillLabel">🧩 Percorso alla soluzione</p><p class="skillText">${testoMetodo(modo)}</p></div>
+    </div>
+
+    <div class="reportCard">
+      <h3>Racconto narrativo — prompt per AI</h3>
+      <p class="promptNote">Copia questo testo e incollalo in Claude o ChatGPT per generare il racconto del viaggio in stile medievale.</p>
+      <div id="promptAI">${promptTesto}</div>
+      <button class="btnCopia" onclick="copiaPrompt()">📋 Copia prompt</button>
+    </div>
+
+    <button class="btnTorna" onclick="document.getElementById('scTesoro').classList.remove('attivo')">← Torna alla stanza</button>
+  `;
+  sc.classList.add("attivo");
+}
+
+function apriPortaIngresso() {
+  mostraPopup(`
+    <div class="nome">― Porta ―</div>
+    <div class="testo">Puoi tornare sui tuoi passi verso la sala precedente.</div>
+    <div class="bottoni">
+      <button class="si" onclick="window.location.href='stanza3cinema.html'">Torna indietro →</button>
+      <button class="no" onclick="chiudiPopup()">Resta qui</button>
+    </div>
+  `);
+}
+
+function apriInterazione(oggetto) {
+  const dati = oggetto.userData;
+  clickTotali++;
+  if (dati.tipo === "scrigno") apriScrigno();
+  else if (dati.tipo === "porta-ingresso") apriPortaIngresso();
+  else if (dati.tipo === "narrativo") apriHotspotNarrativo(dati.hotspotId);
+}
+
+/* ══════════════════════════════════════════
+   SCENA 3D — la stanza del tesoro, camera vault raccolta
+   ══════════════════════════════════════════ */
+const STANZA_LATO = 16;
+const ALTEZZA = 4;
+const ALTEZZA_OCCHI = 1.6;
+const RAGGIO_INTERAZIONE = 2.6;
+const meta = STANZA_LATO / 2;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xBFD6EE);
+scene.fog = new THREE.Fog(0xC9BFA8, 12, 34);
+
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(0, ALTEZZA_OCCHI, -meta + 3);
+
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById("canvas3d"), antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+scene.add(new THREE.AmbientLight(0xfff0d8, 0.38));
+
+/* ══════════════════════════════════════════
+   TEXTURE PROCEDURALI
+   ══════════════════════════════════════════ */
+function creaTexturaPietra() {
+  const size = 256;
+  const canvas = document.createElement("canvas");
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const cella = 32;
+  const toniChiari = ["#8a8474", "#7f7868"];
+  const toniScuri = ["#5f5a4c", "#544f42"];
+  for (let y = 0; y < size; y += cella) {
+    for (let x = 0; x < size; x += cella) {
+      const scacco = ((x / cella) + (y / cella)) % 2 === 0;
+      const toni = scacco ? toniChiari : toniScuri;
+      ctx.fillStyle = toni[Math.floor(Math.random() * toni.length)];
+      ctx.fillRect(x, y, cella, cella);
+    }
+  }
+  ctx.strokeStyle = "rgba(10,8,5,0.4)";
+  for (let i = 0; i <= size; i += cella) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(size, i); ctx.stroke();
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(STANZA_LATO / 3, STANZA_LATO / 3);
+  return texture;
+}
+
+function creaTexturaPartitura() {
+  const w = 110, h = 80;
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#EADFC0";
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(40,28,14,0.6)";
+  ctx.lineWidth = 1;
+  for (let riga = 0; riga < 2; riga++) {
+    const y0 = 16 + riga * 32;
+    for (let l = 0; l < 5; l++) {
+      ctx.beginPath(); ctx.moveTo(8, y0 + l * 5); ctx.lineTo(w - 8, y0 + l * 5); ctx.stroke();
+    }
+    for (let n = 0; n < 6; n++) {
+      const nx = 16 + n * 14 + Math.random() * 4;
+      const ny = y0 + Math.random() * 20;
+      ctx.fillStyle = "#2A1C0E";
+      ctx.beginPath(); ctx.ellipse(nx, ny, 3, 2.3, -0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(nx + 2.6, ny - 10, 1, 10);
+    }
+  }
+  return new THREE.CanvasTexture(canvas);
+}
+
+/* pavimento e soffitto */
+const pavimento = new THREE.Mesh(
+  new THREE.BoxGeometry(STANZA_LATO, 0.2, STANZA_LATO),
+  new THREE.MeshStandardMaterial({ map: creaTexturaPietra(), roughness: 0.85 })
+);
+pavimento.position.y = -0.1;
+scene.add(pavimento);
+
+const soffitto = new THREE.Mesh(
+  new THREE.BoxGeometry(STANZA_LATO, 0.2, STANZA_LATO),
+  new THREE.MeshStandardMaterial({ color: 0x5a4e3e })
+);
+soffitto.position.y = ALTEZZA + 0.1;
+scene.add(soffitto);
+
+const matCornice = new THREE.MeshStandardMaterial({ color: 0x4a4030 });
+[[STANZA_LATO, 0.35, meta - 0.175], [STANZA_LATO, 0.35, -meta + 0.175]].forEach(([w, d, zPos]) => {
+  const listello = new THREE.Mesh(new THREE.BoxGeometry(w, 0.1, d), matCornice);
+  listello.position.set(0, ALTEZZA - 0.02, zPos);
+  scene.add(listello);
+});
+[[0.35, STANZA_LATO, meta - 0.175], [0.35, STANZA_LATO, -meta + 0.175]].forEach(([w, d, xPos]) => {
+  const listello = new THREE.Mesh(new THREE.BoxGeometry(w, 0.1, d), matCornice);
+  listello.position.set(xPos, ALTEZZA - 0.02, 0);
+  scene.add(listello);
+});
+
+// rosone con una gemma dorata pulsante al centro — tocco a tema "tesoro"
+const gruppoRosone = new THREE.Group();
+gruppoRosone.position.set(0, ALTEZZA - 0.02, 0);
+scene.add(gruppoRosone);
+[1.3, 0.85].forEach((raggio, i) => {
+  const anello = new THREE.Mesh(
+    new THREE.TorusGeometry(raggio, 0.04, 8, 24),
+    new THREE.MeshStandardMaterial({ color: i === 0 ? 0x4a4030 : 0xC48A28 })
+  );
+  anello.rotation.x = Math.PI / 2;
+  gruppoRosone.add(anello);
+});
+const matGemmaSoffitto = new THREE.MeshStandardMaterial({ color: 0xE8C24A, emissive: 0xC48A28, emissiveIntensity: 0.6 });
+const gemmaSoffitto = new THREE.Mesh(new THREE.OctahedronGeometry(0.16), matGemmaSoffitto);
+gemmaSoffitto.position.y = -0.1;
+gruppoRosone.add(gemmaSoffitto);
+
+/* ══════════════════════════════════════════
+   PARETI — un solo varco (ingresso a nord), le altre tre piene
+   ══════════════════════════════════════════ */
+const matParete = new THREE.MeshStandardMaterial({ color: 0x9a8f78 });
+function creaParete(w, h, x, y, z, ry) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.2), matParete);
+  m.position.set(x, y, z);
+  m.rotation.y = ry;
+  scene.add(m);
+}
+const MARGINE_ANGOLO = 0.1;
+const META_VARCO = 0.8;
+const ALTEZZA_PORTA = 3;
+const larghezzaTroncone = (meta - META_VARCO) + MARGINE_ANGOLO;
+const centroTronconeSx = -meta + larghezzaTroncone / 2 - MARGINE_ANGOLO / 2;
+const centroTronconeDx = meta - larghezzaTroncone / 2 + MARGINE_ANGOLO / 2;
+const spazioSopraPorta = ALTEZZA - ALTEZZA_PORTA;
+
+creaParete(larghezzaTroncone, ALTEZZA, centroTronconeSx, ALTEZZA / 2, -meta, 0);
+creaParete(larghezzaTroncone, ALTEZZA, centroTronconeDx, ALTEZZA / 2, -meta, 0);
+creaParete(META_VARCO * 2 + MARGINE_ANGOLO, spazioSopraPorta, 0, ALTEZZA_PORTA + spazioSopraPorta / 2, -meta, 0);
+creaParete(STANZA_LATO + MARGINE_ANGOLO, ALTEZZA, 0, ALTEZZA / 2, meta, 0);
+creaParete(STANZA_LATO + MARGINE_ANGOLO, ALTEZZA, -meta, ALTEZZA / 2, 0, Math.PI / 2);
+creaParete(STANZA_LATO + MARGINE_ANGOLO, ALTEZZA, meta, ALTEZZA / 2, 0, Math.PI / 2);
+
+/* sistema interattivi/collisioni — identico alle altre stanze */
+const oggettiInterattivi = [];
+const materialiPulsanti = [];
+function registraInterattivo(mesh, dati) {
+  mesh.userData.interagibile = true;
+  Object.assign(mesh.userData, dati);
+  oggettiInterattivi.push(mesh);
+  const materiali = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  materiali.forEach(m => {
+    if (m && "emissive" in m) {
+      m.emissive = new THREE.Color(0xC48A28);
+      m.emissiveIntensity = 0.25;
+      materialiPulsanti.push(m);
+    }
+  });
+}
+const fiamme = [];
+function registraFiamma(materiale, intensitaBase, luce) {
+  fiamme.push({ materiale, base: intensitaBase, luce: luce || null, luceBase: luce ? luce.intensity : 0, seme: Math.random() * 100 });
+}
+
+const RAGGIO_GIOCATORE = 0.45;
+const MARGINE_PARETE = 1.2;
+const ingombri = [];
+function registraIngombro(oggetto3D, margineExtra = RAGGIO_GIOCATORE) {
+  oggetto3D.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(oggetto3D);
+  ingombri.push({
+    minX: box.min.x - margineExtra, maxX: box.max.x + margineExtra,
+    minZ: box.min.z - margineExtra, maxZ: box.max.z + margineExtra
+  });
+}
+function risolviPosizioneValida(x, z) {
+  let px = Math.max(-meta + MARGINE_PARETE, Math.min(meta - MARGINE_PARETE, x));
+  let pz = Math.max(-meta + MARGINE_PARETE, Math.min(meta - MARGINE_PARETE, z));
+  ingombri.forEach(r => {
+    if (px > r.minX && px < r.maxX && pz > r.minZ && pz < r.maxZ) {
+      const distSx = px - r.minX, distDx = r.maxX - px, distSu = pz - r.minZ, distGiu = r.maxZ - pz;
+      const minDist = Math.min(distSx, distDx, distSu, distGiu);
+      if (minDist === distSx) px = r.minX; else if (minDist === distDx) px = r.maxX;
+      else if (minDist === distSu) pz = r.minZ; else pz = r.maxZ;
+    }
+  });
+  return { x: px, z: pz };
+}
+
+/* porta d'ingresso — cardine, ma qui resta sempre chiusa/fissa
+   (non ha serratura: si può sempre tornare indietro) */
+const gruppoPortaIngresso = new THREE.Group();
+gruppoPortaIngresso.position.set(0, 0, -meta);
+scene.add(gruppoPortaIngresso);
+const portaIngresso = new THREE.Mesh(
+  new THREE.BoxGeometry(1.4, ALTEZZA_PORTA, 0.15),
+  new THREE.MeshStandardMaterial({ color: 0x3a2412 })
+);
+portaIngresso.position.set(0, ALTEZZA_PORTA / 2, 0.12);
+gruppoPortaIngresso.add(portaIngresso);
+registraInterattivo(portaIngresso, { nome: "Porta", tipo: "porta-ingresso" });
+const manigliaIngresso = new THREE.Mesh(
+  new THREE.BoxGeometry(0.12, 0.12, 0.12),
+  new THREE.MeshStandardMaterial({ color: 0xC48A28 })
+);
+manigliaIngresso.position.set(0.5, ALTEZZA_PORTA / 2, 0.2);
+gruppoPortaIngresso.add(manigliaIngresso);
+
+/* ══════════════════════════════════════════
+   TORCE A PARETE — stesso linguaggio delle altre stanze
+   ══════════════════════════════════════════ */
+function creaTorcia(x, z, ry) {
+  const gruppo = new THREE.Group();
+  gruppo.position.set(x, 2.3, z);
+  gruppo.rotation.y = ry || 0;
+  gruppo.translateZ(0.1);
+  scene.add(gruppo);
+  const bracciolo = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.35), new THREE.MeshStandardMaterial({ color: 0x2a1c10 }));
+  bracciolo.position.z = 0.15;
+  gruppo.add(bracciolo);
+  const manico = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.4, 6), new THREE.MeshStandardMaterial({ color: 0x3a2412 }));
+  manico.rotation.x = Math.PI / 2;
+  manico.position.set(0, 0.1, 0.3);
+  gruppo.add(manico);
+  const matFiamma = new THREE.MeshStandardMaterial({ color: 0xFFA236, emissive: 0xFF7A1A, emissiveIntensity: 1 });
+  const fiamma = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.22, 8), matFiamma);
+  fiamma.position.set(0, 0.32, 0.3);
+  gruppo.add(fiamma);
+  const luce = new THREE.PointLight(0xFF9A3C, 0.9, 6);
+  luce.position.set(0, 0.32, 0.3);
+  gruppo.add(luce);
+  registraFiamma(matFiamma, 1, luce);
+  return gruppo;
+}
+/* ══════════════════════════════════════════
+   AMBIENTAZIONE MATTUTINA — colonne addossate alle pareti, finestre
+   fra una colonna e l'altra che affacciano su un'alba luminosa; la luce
+   arriva da fuori (raggi di sole + luce di cielo), non da fiaccole.
+   ══════════════════════════════════════════ */
+function creaTexturaAlba(conSole) {
+  const W = 128, H = 160;
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const c = cv.getContext("2d");
+  const g = c.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#8FC3F0");
+  g.addColorStop(0.55, "#D6E8F5");
+  g.addColorStop(0.85, "#FFE6B0");
+  g.addColorStop(1, "#FFD08A");
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  if (conSole) {
+    const rg = c.createRadialGradient(86, 112, 2, 86, 112, 58);
+    rg.addColorStop(0, "rgba(255,250,220,1)");
+    rg.addColorStop(0.18, "rgba(255,236,170,.95)");
+    rg.addColorStop(1, "rgba(255,210,120,0)");
+    c.fillStyle = rg; c.fillRect(0, 0, W, H);
+  }
+  // nuvole morbide
+  c.fillStyle = "rgba(255,255,255,.75)";
+  [[28, 36, 20], [46, 40, 15], [12, 42, 12], [92, 24, 14], [106, 28, 11]].forEach(([x, y, r]) => {
+    c.beginPath(); c.ellipse(x, y, r, r * 0.45, 0, 0, Math.PI * 2); c.fill();
+  });
+  // colline lontane
+  c.fillStyle = "#8FA67A";
+  c.beginPath(); c.moveTo(0, H);
+  for (let x = 0; x <= W; x += 8) c.lineTo(x, 138 + Math.sin(x * 0.07) * 7 + Math.sin(x * 0.19) * 3);
+  c.lineTo(W, H); c.closePath(); c.fill();
+  c.fillStyle = "#6F8860";
+  c.beginPath(); c.moveTo(0, H);
+  for (let x = 0; x <= W; x += 8) c.lineTo(x, 148 + Math.sin(x * 0.11 + 1) * 5);
+  c.lineTo(W, H); c.closePath(); c.fill();
+  return new THREE.CanvasTexture(cv);
+}
+const texAlbaSole = creaTexturaAlba(true);
+const texAlbaLibera = creaTexturaAlba(false);
+
+function creaTexturaRaggio() {
+  const cv = document.createElement("canvas"); cv.width = 64; cv.height = 128;
+  const c = cv.getContext("2d");
+  const g = c.createLinearGradient(0, 128, 0, 0); // basso = vicino alla finestra
+  g.addColorStop(0, "rgba(255,236,180,1)");
+  g.addColorStop(1, "rgba(255,236,180,0)");
+  c.fillStyle = g; c.fillRect(0, 0, 64, 128);
+  c.globalCompositeOperation = "destination-in";
+  const h = c.createLinearGradient(0, 0, 64, 0);
+  h.addColorStop(0, "rgba(0,0,0,0)"); h.addColorStop(0.25, "rgba(0,0,0,1)");
+  h.addColorStop(0.75, "rgba(0,0,0,1)"); h.addColorStop(1, "rgba(0,0,0,0)");
+  c.fillStyle = h; c.fillRect(0, 0, 64, 128);
+  return new THREE.CanvasTexture(cv);
+}
+const texRaggio = creaTexturaRaggio();
+
+const matColonnaPietra = new THREE.MeshStandardMaterial({ color: 0xB3AA96 });
+function creaColonnaAParete(x, z, ry) {
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  g.rotation.y = ry;
+  scene.add(g);
+  const plinto = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.14, 0.8), matColonnaPietra);
+  plinto.position.y = 0.07; g.add(plinto);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.37, 0.18, 12), matColonnaPietra);
+  base.position.y = 0.23; g.add(base);
+  const fusto = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, ALTEZZA - 0.8, 12), matColonnaPietra);
+  fusto.position.y = 0.32 + (ALTEZZA - 0.8) / 2; g.add(fusto);
+  const capitello = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.25, 0.22, 12), matColonnaPietra);
+  capitello.position.y = ALTEZZA - 0.4; g.add(capitello);
+  const abaco = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.12, 0.8), matColonnaPietra);
+  abaco.position.y = ALTEZZA - 0.23; g.add(abaco);
+  return g;
+}
+
+const matTelaioAlba = new THREE.MeshStandardMaterial({ color: 0x4a3420 });
+function creaFinestraAlba(x, z, ry, tex) {
+  const g = new THREE.Group();
+  g.position.set(x, 2.45, z);
+  g.rotation.y = ry;
+  scene.add(g);
+  const telaio = new THREE.Mesh(new THREE.BoxGeometry(1.7, 2.1, 0.08), matTelaioAlba);
+  g.add(telaio);
+  // il "cielo" è autoilluminato (MeshBasicMaterial): è la sorgente di luce visibile
+  const vetro = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.8),
+    new THREE.MeshBasicMaterial({ map: tex, fog: false }));
+  vetro.position.z = -0.05; vetro.rotation.y = Math.PI; // faccia verso l'interno
+  g.add(vetro);
+  const croceV = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.8, 0.05), matTelaioAlba);
+  croceV.position.z = -0.06; g.add(croceV);
+  [-0.3, 0.3].forEach(yy => {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.05, 0.05), matTelaioAlba);
+    b.position.set(0, yy, -0.06); g.add(b);
+  });
+  const davanzale = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.08, 0.3), matColonnaPietra);
+  davanzale.position.set(0, -1.1, -0.1); g.add(davanzale);
+  // raggio di sole che scende nella stanza
+  const dir = new THREE.Vector3(0, -0.5, -1).normalize();
+  const L = 5.4;
+  const raggio = new THREE.Mesh(new THREE.PlaneGeometry(1.5, L),
+    new THREE.MeshBasicMaterial({
+      map: texRaggio, transparent: true, opacity: 0.2, depthWrite: false,
+      blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false
+    }));
+  raggio.position.copy(dir.clone().multiplyScalar(L / 2 + 0.15));
+  raggio.rotation.x = Math.atan2(dir.z, dir.y);
+  g.add(raggio);
+  return g;
+}
+
+// per ogni parete: posizioni delle colonne (regolari) e delle finestre (nei vuoti)
+const DIST_COL = 0.4; // distanza del centro colonna dal centro parete
+const OFF_FIN = 0.16;
+const pareti = [
+  { col: [-6, 0, 6],       fin: [-3, 3],     pos: a => [a, meta - DIST_COL],  posF: a => [a, meta - OFF_FIN],  ry: 0 },              // sud
+  { col: [-6, -2.2, 2.2, 6], fin: [-4.1, 4.1], pos: a => [a, -meta + DIST_COL], posF: a => [a, -meta + OFF_FIN], ry: Math.PI },       // nord (porta al centro)
+  { col: [-6, 0, 6],       fin: [-3, 3],     pos: a => [-meta + DIST_COL, a], posF: a => [-meta + OFF_FIN, a], ry: -Math.PI / 2 },  // ovest
+  { col: [-6, 0, 6],       fin: [-3, 3],     pos: a => [meta - DIST_COL, a],  posF: a => [meta - OFF_FIN, a],  ry: Math.PI / 2 }    // est
+];
+pareti.forEach((p, k) => {
+  p.col.forEach(a => { const [x, z] = p.pos(a); creaColonnaAParete(x, z, 0); });
+  p.fin.forEach((a, i) => { const [x, z] = p.posF(a); creaFinestraAlba(x, z, p.ry, (k + i) % 2 === 0 ? texAlbaSole : texAlbaLibera); });
+});
+
+/* luce del mattino: arriva da fuori (cielo + sole), niente fiaccole */
+scene.add(new THREE.HemisphereLight(0xDCEBFF, 0x8a7355, 0.6));
+const soleMattino = new THREE.DirectionalLight(0xFFE2B0, 0.45);
+soleMattino.position.set(10, 8, 6);
+scene.add(soleMattino);
+[[0, 2.6, meta - 2.2], [0, 2.6, -meta + 2.2], [-meta + 2.2, 2.6, 0], [meta - 2.2, 2.6, 0]].forEach(([x, y, z]) => {
+  const l = new THREE.PointLight(0xFFE6BC, 0.5, 12);
+  l.position.set(x, y, z);
+  scene.add(l);
+});
+
+/* ══════════════════════════════════════════
+   ARREDI — pergamene, scrittoio, monete, mobiletto, candele,
+   e il baule al centro. Ogni pezzo è un oggetto 3D vero (non
+   più un hotspot su una foto).
+   ══════════════════════════════════════════ */
+const matLegnoScuro = new THREE.MeshStandardMaterial({ color: 0x3a2412 });
+const matLegnoChiaro = new THREE.MeshStandardMaterial({ color: 0x6b4a2c });
+
+// PERGAMENE — un rotolo su un piccolo leggio, contro la parete ovest
+const gruppoPergamene = new THREE.Group();
+gruppoPergamene.position.set(-meta, 1.05, -3);
+gruppoPergamene.rotation.y = Math.PI / 2;
+gruppoPergamene.translateZ(0.4);
+scene.add(gruppoPergamene);
+const leggioPergamene = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.06, 0.4), matLegnoScuro);
+gruppoPergamene.add(leggioPergamene);
+const gambaLeggio = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 1.0, 8), matLegnoScuro);
+gambaLeggio.position.y = -0.53;
+gruppoPergamene.add(gambaLeggio);
+const rotoloBase = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 10), new THREE.MeshStandardMaterial({ color: 0xD8C79A }));
+rotoloBase.rotation.z = Math.PI / 2;
+rotoloBase.position.set(-0.2, 0.09, 0);
+gruppoPergamene.add(rotoloBase);
+const pergamenaSvolta = new THREE.Mesh(
+  new THREE.BoxGeometry(0.36, 0.015, 0.32),
+  new THREE.MeshStandardMaterial({ color: 0xEADFC0 })
+);
+pergamenaSvolta.position.set(0.08, 0.045, 0);
+gruppoPergamene.add(pergamenaSvolta);
+registraInterattivo(pergamenaSvolta, { nome: "Pergamene", tipo: "narrativo", hotspotId: "pergamene" });
+registraIngombro(gruppoPergamene, 0.3);
+
+// SCRITTOIO — piccola scrivania contro la parete est
+const gruppoScrittoio = new THREE.Group();
+gruppoScrittoio.position.set(meta, 0, -3);
+gruppoScrittoio.rotation.y = -Math.PI / 2;
+gruppoScrittoio.translateZ(0.4);
+scene.add(gruppoScrittoio);
+const pianoScrittoio = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.07, 0.5), matLegnoChiaro);
+pianoScrittoio.position.y = 0.75;
+gruppoScrittoio.add(pianoScrittoio);
+[[-0.38, -0.2], [0.38, -0.2], [-0.38, 0.2], [0.38, 0.2]].forEach(([gx, gz]) => {
+  const gamba = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.75, 0.06), matLegnoScuro);
+  gamba.position.set(gx, 0.375, gz);
+  gruppoScrittoio.add(gamba);
+});
+const diario = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.03, 0.2), new THREE.MeshStandardMaterial({ color: 0x5A1E1E }));
+diario.position.set(0, 0.795, 0);
+gruppoScrittoio.add(diario);
+registraInterattivo(diario, { nome: "Scrittoio", tipo: "narrativo", hotspotId: "scrittoio" });
+registraIngombro(gruppoScrittoio, 0.3);
+
+// MONETE — piccolo mucchio dorato su un tavolino, parete ovest
+const gruppoMonete = new THREE.Group();
+gruppoMonete.position.set(-meta, 0, 3);
+gruppoMonete.rotation.y = Math.PI / 2;
+gruppoMonete.translateZ(0.35);
+scene.add(gruppoMonete);
+const tavolinoMonete = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.24, 0.55, 10), matLegnoScuro);
+tavolinoMonete.position.y = 0.275;
+gruppoMonete.add(tavolinoMonete);
+const matMoneta = new THREE.MeshStandardMaterial({ color: 0xC9A227, emissive: 0x7A5A18, emissiveIntensity: 0.15 });
+for (let i = 0; i < 10; i++) {
+  const moneta = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.015, 12), matMoneta);
+  moneta.position.set((Math.random() - 0.5) * 0.28, 0.56 + i * 0.014, (Math.random() - 0.5) * 0.28);
+  moneta.rotation.x = (Math.random() - 0.5) * 0.3;
+  moneta.rotation.z = (Math.random() - 0.5) * 0.3;
+  gruppoMonete.add(moneta);
+}
+const zonaCliccMonete = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.22, 0.22, 0.2, 10),
+  new THREE.MeshStandardMaterial({ color: 0xC9A227, transparent: true, opacity: 0.001 })
+);
+zonaCliccMonete.position.y = 0.65;
+gruppoMonete.add(zonaCliccMonete);
+registraInterattivo(zonaCliccMonete, { nome: "Monete", tipo: "narrativo", hotspotId: "monete" });
+registraIngombro(gruppoMonete, 0.3);
+
+// MOBILETTO — piccolo mobile con cassetti, parete est
+const gruppoMobiletto = new THREE.Group();
+gruppoMobiletto.position.set(meta, 0, 3);
+gruppoMobiletto.rotation.y = -Math.PI / 2;
+gruppoMobiletto.translateZ(0.3);
+scene.add(gruppoMobiletto);
+const corpoMobiletto = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.4), matLegnoScuro);
+corpoMobiletto.position.y = 0.45;
+gruppoMobiletto.add(corpoMobiletto);
+[0.22, 0.5, 0.78].forEach(y => {
+  const cassetto = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.2, 0.03), matLegnoChiaro);
+  cassetto.position.set(0, y, 0.21);
+  gruppoMobiletto.add(cassetto);
+  const pomello = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 6), new THREE.MeshStandardMaterial({ color: 0xC48A28 }));
+  pomello.position.set(0, y, 0.23);
+  gruppoMobiletto.add(pomello);
+});
+registraInterattivo(corpoMobiletto, { nome: "Mobiletto", tipo: "narrativo", hotspotId: "mobiletto" });
+registraIngombro(gruppoMobiletto, 0.3);
+
+// CANDELE — piccolo candelabro + leggio con lo spartito, angolo sud
+const gruppoCandele = new THREE.Group();
+gruppoCandele.position.set(-3, 0, meta);
+gruppoCandele.rotation.y = Math.PI;
+gruppoCandele.translateZ(0.35);
+scene.add(gruppoCandele);
+const tavolinoCandele = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.26, 0.7, 10), matLegnoScuro);
+tavolinoCandele.position.y = 0.35;
+gruppoCandele.add(tavolinoCandele);
+const matFiammaCandele = new THREE.MeshStandardMaterial({ color: 0xFFB24A, emissive: 0xFF8C24, emissiveIntensity: 1 });
+[[-0.1, -0.05], [0.1, 0.03], [0, 0.12]].forEach(([cx, cz]) => {
+  const candela = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.18, 6), new THREE.MeshStandardMaterial({ color: 0xEADFC0 }));
+  candela.position.set(cx, 0.79, cz);
+  gruppoCandele.add(candela);
+  const fiamma = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.09, 6), matFiammaCandele);
+  fiamma.position.set(cx, 0.89, cz);
+  gruppoCandele.add(fiamma);
+});
+const luceCandele = new THREE.PointLight(0xFFB24A, 0.6, 4);
+luceCandele.position.set(0, 0.9, 0);
+gruppoCandele.add(luceCandele);
+registraFiamma(matFiammaCandele, 1, luceCandele);
+// leggio con lo spartito, accanto al tavolino
+const leggioSpartito = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.22, 0.03), matLegnoScuro);
+leggioSpartito.position.set(0.55, 0.55, 0);
+leggioSpartito.rotation.x = -0.35;
+gruppoCandele.add(leggioSpartito);
+const spartito = new THREE.Mesh(
+  new THREE.BoxGeometry(0.28, 0.19, 0.01),
+  new THREE.MeshStandardMaterial({ map: creaTexturaPartitura() })
+);
+spartito.position.set(0.55, 0.56, 0.02);
+spartito.rotation.x = -0.35;
+gruppoCandele.add(spartito);
+registraInterattivo(spartito, { nome: "Candele", tipo: "narrativo", hotspotId: "candele" });
+registraIngombro(gruppoCandele, 0.35);
+
+/* ══════════════════════════════════════════
+   IL BAULE — al centro della stanza, con coperchio su cardine
+   (si anima in apertura quando l'enigma è risolto, visibile a
+   tutto il gruppo tramite lo stesso meccanismo delle porte)
+   ══════════════════════════════════════════ */
+const gruppoBaule = new THREE.Group();
+gruppoBaule.position.set(0, 0, 0.5);
+scene.add(gruppoBaule);
+
+const baseBaule = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.45, 0.55), matLegnoScuro);
+baseBaule.position.y = 0.225;
+gruppoBaule.add(baseBaule);
+// borchie decorative
+const matBorchia = new THREE.MeshStandardMaterial({ color: 0x8a6a3a });
+[-0.38, 0, 0.38].forEach(x => {
+  [0.08, 0.42].forEach(y => {
+    const borchia = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 6), matBorchia);
+    borchia.position.set(x, y, 0.28);
+    gruppoBaule.add(borchia);
+  });
+});
+// piastra della serratura (decorativa, niente buco per chiave — coerente col testo)
+const piastraSerratura = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.02), new THREE.MeshStandardMaterial({ color: 0xC48A28 }));
+piastraSerratura.position.set(0, 0.24, 0.285);
+gruppoBaule.add(piastraSerratura);
+
+// coperchio su cardine (retro del baule) — si apre ruotando all'indietro
+const cardineCoperchio = new THREE.Group();
+cardineCoperchio.position.set(0, 0.45, -0.27);
+gruppoBaule.add(cardineCoperchio);
+const coperchioBaule = new THREE.Mesh(
+  new THREE.BoxGeometry(0.94, 0.06, 0.6),
+  matLegnoScuro
+);
+coperchioBaule.position.set(0, 0.03, 0.27);
+cardineCoperchio.add(coperchioBaule);
+registraInterattivo(coperchioBaule, { nome: "Baule", tipo: "scrigno" });
+registraInterattivo(baseBaule, { nome: "Baule", tipo: "scrigno" });
+
+// un piccolo bagliore dorato dentro il baule, visibile solo a coperchio aperto
+const luceTesoro = new THREE.PointLight(0xFFDA8A, 0, 3);
+luceTesoro.position.set(0, 0.3, 0);
+gruppoBaule.add(luceTesoro);
+
+const ANGOLO_COPERCHIO_APERTO = -Math.PI * 0.75;
+let coperchioTargetAngolo = 0;
+function impostaCoperchio(aperto, immediato) {
+  coperchioTargetAngolo = aperto ? ANGOLO_COPERCHIO_APERTO : 0;
+  luceTesoro.intensity = aperto ? 0.8 : 0;
+  if (immediato) cardineCoperchio.rotation.x = coperchioTargetAngolo;
+}
+
+registraIngombro(gruppoBaule, 0.4);
+
+/* ══════════════════════════════════════════
+   MOVIMENTO A CLICK
+   ══════════════════════════════════════════ */
+let target = camera.position.clone();
+let inMovimento = false;
+const raycaster = new THREE.Raycaster();
+const puntatore = new THREE.Vector2();
+
+function pickGroundAt(clientX, clientY) {
+  puntatore.x = (clientX / innerWidth) * 2 - 1;
+  puntatore.y = -(clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(puntatore, camera);
+  const hit = raycaster.intersectObject(pavimento)[0];
+  return hit ? hit.point : null;
+}
+function pickOggetto(clientX, clientY) {
+  puntatore.x = (clientX / innerWidth) * 2 - 1;
+  puntatore.y = -(clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(puntatore, camera);
+  const hits = raycaster.intersectObjects(oggettiInterattivi, false);
+  return hits[0] ? hits[0].object : null;
+}
+
+let yaw = Math.PI, pitch = 0;
+let trascinando = false, ultimoX = 0, ultimoY = 0, mosso = false;
+let gestoIniziatoSulCanvas = false;
+const canvas = document.getElementById("canvas3d");
+
+function inizioTocco(x, y) { gestoIniziatoSulCanvas = true; trascinando = true; mosso = false; ultimoX = x; ultimoY = y; }
+function muoviTocco(x, y) {
+  if (!trascinando) return;
+  const dx = x - ultimoX, dy = y - ultimoY;
+  if (Math.abs(dx) + Math.abs(dy) > 6) mosso = true;
+  yaw += dx * 0.004;
+  pitch = Math.max(-1, Math.min(1, pitch + dy * 0.004));
+  ultimoX = x; ultimoY = y;
+}
+function fineTocco(x, y) {
+  if (!gestoIniziatoSulCanvas) return;
+  gestoIniziatoSulCanvas = false;
+  trascinando = false;
+  if (document.getElementById("velo").classList.contains("attivo")) return;
+  if (document.getElementById("scTesoro").classList.contains("attivo")) return;
+  if (!mosso) gestisciClick(x, y);
+}
+canvas.addEventListener("mousedown", e => inizioTocco(e.clientX, e.clientY));
+canvas.addEventListener("mousemove", e => muoviTocco(e.clientX, e.clientY));
+addEventListener("mouseup", e => fineTocco(e.clientX, e.clientY));
+canvas.addEventListener("touchstart", e => { const t = e.touches[0]; inizioTocco(t.clientX, t.clientY); }, { passive:true });
+canvas.addEventListener("touchmove", e => { const t = e.touches[0]; muoviTocco(t.clientX, t.clientY); }, { passive:true });
+canvas.addEventListener("touchend", e => { const t = e.changedTouches[0]; fineTocco(t.clientX, t.clientY); });
+
+function gestisciClick(x, y) {
+  const oggetto = pickOggetto(x, y);
+  if (oggetto) {
+    const posMondo = new THREE.Vector3();
+    oggetto.getWorldPosition(posMondo);
+    const distanza = camera.position.distanceTo(posMondo);
+    if (distanza <= RAGGIO_INTERAZIONE) apriInterazione(oggetto);
+    else mostraSuggerimento("Avvicinati per interagire");
+    return;
+  }
+  const punto = pickGroundAt(x, y);
+  if (punto) {
+    const valido = risolviPosizioneValida(punto.x, punto.z);
+    target = new THREE.Vector3(valido.x, ALTEZZA_OCCHI, valido.z);
+    inMovimento = true;
+  }
+}
+function mostraSuggerimento(testo) {
+  const el = document.getElementById("suggerimento");
+  el.textContent = testo;
+  el.classList.add("attivo");
+  clearTimeout(window._tSuggerimento);
+  window._tSuggerimento = setTimeout(() => el.classList.remove("attivo"), 1400);
+}
+
+/* ══════════════════════════════════════════
+   LOOP DI RENDER
+   ══════════════════════════════════════════ */
+function anima() {
+  requestAnimationFrame(anima);
+  if (inMovimento) {
+    camera.position.lerp(target, 0.045);
+    if (camera.position.distanceTo(target) < 0.05) inMovimento = false;
+  }
+  const posValida = risolviPosizioneValida(camera.position.x, camera.position.z);
+  camera.position.x = posValida.x;
+  camera.position.z = posValida.z;
+
+  camera.rotation.order = "YXZ";
+  camera.rotation.y = yaw;
+  camera.rotation.x = pitch;
+
+  const intensita = 0.25 + 0.15 * Math.sin(performance.now() * 0.003);
+  materialiPulsanti.forEach(m => { m.emissiveIntensity = intensita; });
+
+  const t = performance.now() * 0.001;
+  fiamme.forEach(f => {
+    const tremolio = f.base * (0.82 + 0.18 * Math.sin(t * 9 + f.seme) + 0.06 * Math.sin(t * 23 + f.seme));
+    f.materiale.emissiveIntensity = tremolio;
+    if (f.luce) f.luce.intensity = f.luceBase * (0.8 + 0.2 * Math.sin(t * 9 + f.seme));
+  });
+
+  cardineCoperchio.rotation.x += (coperchioTargetAngolo - cardineCoperchio.rotation.x) * 0.06;
+
+  renderer.render(scene, camera);
+}
+anima();
+
+/* ══════════════════════════════════════════
+   AVVIO
+   ══════════════════════════════════════════ */
+async function avviaStanza() {
+  mostraPopup(`<div class="nome">― Caricamento ―</div><div class="testo corsivo">Sto entrando nella partita ${CODICE_PARTITA}…</div>`);
+  await caricaStatoRemoto();
+  if (serraturaSbloccata(STANZA_ID)) impostaCoperchio(true, true);
+  iscrivitiAggiornamenti();
+  chiudiPopup();
+  iniettaControlliFissi("stanza3cinema.html");
+}
+document.addEventListener("DOMContentLoaded", avviaStanza);
+</script>
+<button id="btnCrediti" onclick="mostraCreditiGioco()" style="position:fixed;bottom:5px;left:50%;transform:translateX(-50%);background:transparent;border:none;color:rgba(196,150,60,.55);font-family:Palatino,Georgia,serif;font-size:11px;letter-spacing:.06em;cursor:pointer;padding:4px 8px;z-index:20">© Dott. Magri Gregorio</button>
+<script>
+function mostraCreditiGioco(){
+  mostraPopup('<div class="nome">― Crediti ―</div><div class="testo corsivo" style="font-style:normal">'
+   + '<b>Escape room 3D — Il Castello di Roccabruna</b><br><br>Un progetto di<br><b>Dott. Magri Gregorio</b><br>Psicologo / Psicoterapeuta<br><br>Cooperativa / Istituto Minotauro — Milano<br><br>'
+   + '<span style="font-size:13px;opacity:.7">© 2026 Dott. Magri Gregorio<br>Tutti i diritti riservati.</span></div>'
+   + '<div class="bottoni"><button class="si" onclick="chiudiPopup()">Chiudi</button></div>');
+}
+</script>
+</body>
+</html>
