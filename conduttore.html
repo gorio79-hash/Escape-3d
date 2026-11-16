@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<!--
+  Escape room 3D — Il Castello di Roccabruna — Pagina riservata ai conduttori
+  Un progetto di Dott. Magri Gregorio — Psicologo/Psicoterapeuta
+  Cooperativa/Istituto Minotauro — Milano — © 2026 — Tutti i diritti riservati
+-->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="robots" content="noindex, nofollow">
+<title>Il Castello — Conduttori</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root { --gold:#C48A28; --cream:#F2DDAA; --panel:#150C03; }
+* { box-sizing:border-box; }
+body { margin:0; background:#070503; color:var(--cream); font-family:Palatino,Georgia,serif; }
+.contenitore { max-width:860px; margin:0 auto; padding:28px 16px 60px; }
+h1 { color:var(--gold); font-weight:normal; letter-spacing:.08em; text-align:center; font-size:clamp(20px,3vw,28px); margin:0 0 6px; }
+.sotto { text-align:center; opacity:.7; font-style:italic; margin:0 0 26px; font-size:14px; }
+.riquadro { background:rgba(21,12,3,.85); border:1px solid rgba(196,138,40,.4); border-radius:5px; padding:20px 22px; margin-bottom:18px; }
+label { display:block; color:var(--gold); font-size:14px; margin-bottom:6px; }
+input[type=password] { width:100%; padding:11px 12px; font-family:inherit; font-size:16px; background:#1A0E04; border:1px solid var(--gold); color:var(--cream); border-radius:3px; outline:none; }
+button { padding:9px 18px; font-family:inherit; font-size:15px; cursor:pointer; border-radius:3px; background:#382010; color:var(--cream); border:1px solid var(--gold); letter-spacing:.03em; }
+button.piccolo { padding:6px 12px; font-size:13px; }
+button:disabled { opacity:.5; cursor:default; }
+.errore { color:#e08a70; font-style:italic; min-height:20px; margin-top:8px; font-size:14px; }
+.barra { display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.nota { font-size:13px; opacity:.75; font-style:italic; }
+table { width:100%; border-collapse:collapse; font-size:14px; }
+th { text-align:left; color:var(--gold); font-weight:normal; letter-spacing:.06em; font-size:12px; text-transform:uppercase; border-bottom:1px solid rgba(196,138,40,.35); padding:8px 6px; }
+td { padding:9px 6px; border-bottom:1px solid rgba(196,138,40,.12); vertical-align:middle; }
+td.azioni { white-space:nowrap; text-align:right; }
+.si { color:#8ABF68; } .no { color:#BF8A68; }
+/* resoconto (stesso stile della schermata finale del gioco) */
+#vista h2 { color:var(--gold); font-weight:normal; letter-spacing:.1em; text-align:center; margin:0 0 6px; font-size:22px; }
+#vista .meta { text-align:center; font-style:italic; opacity:.75; margin:0 0 18px; font-size:14px; }
+.reportCard { background:rgba(21,12,3,.75); border:1px solid rgba(196,138,40,.35); border-radius:4px; padding:18px 22px; margin-bottom:14px; }
+.reportCard h3 { color:var(--gold); font-weight:normal; letter-spacing:.12em; font-size:13px; text-transform:uppercase; margin:0 0 14px; border-bottom:1px solid rgba(196,138,40,.2); padding-bottom:8px; }
+.reportRiga { display:flex; gap:8px; align-items:baseline; font-size:13px; margin-bottom:7px; line-height:1.5; flex-wrap:wrap; }
+.reportRiga .eLabel { color:#9A8A6A; min-width:190px; }
+.reportRiga .eValore { color:var(--cream); flex:1; }
+.skillBlocco { margin-bottom:14px; }
+.skillLabel { font-size:13px; color:var(--gold); letter-spacing:.06em; margin:0 0 4px; }
+.skillText { font-size:13px; font-style:italic; color:#B0A080; line-height:1.65; margin:0; }
+textarea { width:100%; height:180px; margin-top:10px; background:#080503; color:#B0A080; border:1px solid rgba(196,138,40,.3); font-size:12px; display:none; }
+.credits { text-align:center; font-size:11px; opacity:.5; margin-top:30px; line-height:1.6; }
+</style>
+</head>
+<body>
+<div class="contenitore">
+  <h1>― Il Castello di Roccabruna ―</h1>
+  <p class="sotto">Area riservata ai conduttori · resoconti delle partite</p>
+
+  <div id="schermataAccesso" class="riquadro">
+    <label for="parola">Parola d'accesso dei conduttori</label>
+    <input type="password" id="parola" autocomplete="off" autocapitalize="off" onkeydown="if(event.key==='Enter')entra()">
+    <div style="margin-top:12px"><button onclick="entra()">Entra →</button></div>
+    <div id="erroreAccesso" class="errore"></div>
+  </div>
+
+  <div id="schermataElenco" style="display:none">
+    <div class="riquadro">
+      <div class="barra">
+        <div class="nota">Partite completate oppure durate almeno 30 minuti, dalla più recente.</div>
+        <div>
+          <button class="piccolo" onclick="caricaPartite()">↻ Aggiorna</button>
+          <button class="piccolo" id="btnTutti" onclick="scaricaTutti()" disabled>💾 Scarica tutti</button>
+          <button class="piccolo" id="btnCopiaTutti" onclick="copiaTutti()" disabled>📋 Copia tutti</button>
+        </div>
+      </div>
+      <div id="statoElenco" class="nota">Caricamento…</div>
+      <div id="tabella"></div>
+      <div id="feedback" class="nota" style="margin-top:10px"></div>
+      <textarea id="testoManuale" readonly></textarea>
+    </div>
+    <div id="vista"></div>
+  </div>
+
+  <div class="credits">Un progetto di Dott. Magri Gregorio — Psicologo/Psicoterapeuta<br>Cooperativa/Istituto Minotauro, Milano — © 2026 Tutti i diritti riservati</div>
+</div>
+
+<script>
+/* ── PAROLA D'ACCESSO DEI CONDUTTORI ─────────────────────────
+   Solo l'impronta cifrata (SHA-256): la parola non è scritta qui.
+   È diversa da quella dei partecipanti.
+   ─────────────────────────────────────────────────────────── */
+const IMPRONTA_CONDUTTORI = "bfab5b70b79bf65c91124b5f270c0780e6de72722a6dcaf770bbe9253fd4d7da";
+const SALE_CONDUTTORI = "castello-conduttore:";
+function sha256(ascii) {
+  const K = [], H = [];
+  let primo = 2, n = 0;
+  const frac = x => ((x - Math.floor(x)) * 4294967296) | 0;
+  while (n < 64) {
+    let ok = true;
+    for (let d = 2; d * d <= primo; d++) if (primo % d === 0) { ok = false; break; }
+    if (ok) { if (n < 8) H[n] = frac(Math.pow(primo, 1 / 2)); K[n++] = frac(Math.pow(primo, 1 / 3)); }
+    primo++;
+  }
+  const bytes = Array.from(new TextEncoder().encode(ascii));
+  const lenBit = bytes.length * 8;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  for (let i = 7; i >= 0; i--) bytes.push(i >= 4 ? 0 : (lenBit >>> (i * 8)) & 255);
+  const rotr = (x, s) => (x >>> s) | (x << (32 - s));
+  for (let o = 0; o < bytes.length; o += 64) {
+    const w = [];
+    for (let i = 0; i < 16; i++) w[i] = (bytes[o + 4*i] << 24) | (bytes[o + 4*i + 1] << 16) | (bytes[o + 4*i + 2] << 8) | bytes[o + 4*i + 3];
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(w[i-15], 7) ^ rotr(w[i-15], 18) ^ (w[i-15] >>> 3);
+      const s1 = rotr(w[i-2], 17) ^ rotr(w[i-2], 19) ^ (w[i-2] >>> 10);
+      w[i] = (w[i-16] + s0 + w[i-7] + s1) | 0;
+    }
+    let [a, b, c, d, e, f, g, h] = H;
+    for (let i = 0; i < 64; i++) {
+      const t1 = (h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + w[i]) | 0;
+      const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+    H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;
+  }
+  return H.map(x => (x >>> 0).toString(16).padStart(8, "0")).join("");
+}
+
+function normalizzaParola(s) { return (s || "").trim().toLowerCase().replace(/\s+/g, ""); }
+
+function entra() {
+  const v = document.getElementById("parola").value;
+  if (sha256(SALE_CONDUTTORI + normalizzaParola(v)) === IMPRONTA_CONDUTTORI) {
+    sessionStorage.setItem("accessoConduttori", IMPRONTA_CONDUTTORI);
+    mostraElenco();
+  } else {
+    document.getElementById("erroreAccesso").textContent = "Parola d'accesso non corretta.";
+  }
+}
+function mostraElenco() {
+  document.getElementById("schermataAccesso").style.display = "none";
+  document.getElementById("schermataElenco").style.display = "block";
+  caricaPartite();
+}
+
+/* ── DATI ── */
+const SUPABASE_URL = "https://vozzdhpwiauchvznfvsi.supabase.co";
+const SUPABASE_KEY = "sb_publishable_aLZfS_idBIXD1mEixlnGsA_FF70VGni";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const SOGLIA_MINUTI = 30;
+
+// variabili usate dalle funzioni del resoconto (copiate dalla stanza 4)
+const STANZA_ID = "conduttore";
+const CODICE_PARTITA = "";   // il codice partita non compare nei resoconti (anonimi)
+let statoLocale = { indizi: [], messaggi: [], risposte: {}, serrature_sbloccate: [] };
+let modoRisoluzione = null;
+let ORA_RIF = null;
+let ETICHETTA = "";
+let partite = [];
+
+function formatTempo(sec) {
+  if (!sec || sec <= 0) return "—";
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m > 0 ? `${m} min ${s} sec` : `${s} sec`;
+}
+function escapeHtml(str) {
+  return (str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+const NOMI_SALE = {
+  stanza1: "Sala 1 — Biblioteca",
+  stanza2: "Sala 2 — Sala dei quadri",
+  stanza3: "Sala 3 — Sala di proiezione",
+  stanza4: "Sala 4 — Stanza del tesoro"
+};
+// indizi raccoglibili per sala (per dare un'idea di quanto è stato esplorato)
+const TOTALE_INDIZI = { stanza1: 6, stanza2: 6, stanza3: 5, stanza4: 5 };
+
+const breve = n => n.split(' — ')[1].toLowerCase();
+const NOMI_COMPETENZE = { mov: "movimento", int: "interazione", tac: "taccuino" };
+function datiTutorial(r) {
+  const tutti = r.tutorial || {};
+  const elenco = Object.keys(tutti).map(k => tutti[k]);
+  if (!elenco.length) return null;
+  const t = elenco.find(x => x.principale) || elenco[0];   // conta il dispositivo principale
+  const spiegati = ["mov", "int", "tac"].filter(q => t[q] && t[q].spiegato).map(q => NOMI_COMPETENZE[q]);
+  return { durata: t.durata || 0, spiegati };
+}
+function testoTutorial(tu) {
+  return "tempo " + formatTempo(tu.durata) + " · " +
+    (tu.spiegati.length ? "spiegazione necessaria per: " + tu.spiegati.join(", ") : "nessuna spiegazione necessaria");
+}
+// aiuti automatici del taccuino: elenco in risposte.suggerimenti (uno per aiuto attivato)
+function contaAiuti(r) {
+  const a = r.suggerimenti;
+  if (Array.isArray(a)) return a.length;
+  if (a && typeof a === "object") return Object.keys(a).reduce((t, k) => t + (Array.isArray(a[k]) ? a[k].length : (+a[k] || 0)), 0);
+  return 0;
+}
+function testoAiuti(n) {
+  return n === 0
+    ? "Nessun aiuto automatico del taccuino si è attivato: il gruppo è andato avanti da solo."
+    : (n === 1 ? "Si è attivato 1 aiuto automatico" : "Si sono attivati " + n + " aiuti automatici") + " del taccuino. Sono stati utili? Li avete usati?";
+}
+function datiPercorso() {
+  const r = statoLocale.risposte || {};
+  const tempi = r.tempi || {}, errori = r.errori || {};
+  const ora = ORA_RIF || Date.now();
+  const sale = Object.keys(NOMI_SALE).map(id => {
+    const t = tempi[id] || {};
+    const fine = t.fine || (id === STANZA_ID ? ora : null);
+    const durata = (t.inizio && fine) ? Math.max(0, Math.round((fine - t.inizio) / 1000)) : 0;
+    return {
+      id, nome: NOMI_SALE[id], durata,
+      errori: errori[id] || 0,
+      indizi: statoLocale.indizi.filter(i => i.stanza === id).length,
+      totale: TOTALE_INDIZI[id]
+    };
+  });
+  const inizio = tempi.stanza1 && tempi.stanza1.inizio;
+  const durataTot = inizio ? Math.round((ora - inizio) / 1000) : sale.reduce((a, s) => a + s.durata, 0);
+  return {
+    sale, durataTot,
+    erroriTot: sale.reduce((a, s) => a + s.errori, 0),
+    indiziTot: sale.reduce((a, s) => a + s.indizi, 0),
+    totaleIndizi: sale.reduce((a, s) => a + s.totale, 0),
+    messaggi: (statoLocale.messaggi || []).length,
+    tutorial: datiTutorial(r),
+    aiuti: contaAiuti(r)
+  };
+}
+
+function osservazioni(d, modo) {
+  const out = [];
+  if (d.tutorial)
+    out.push(["🧭 Approccio al nuovo", "Il gruppo ha impiegato " + formatTempo(d.tutorial.durata) +
+      " per prendere confidenza con l'ambiente" +
+      (d.tutorial.spiegati.length ? " (è servita una spiegazione per: " + d.tutorial.spiegati.join(", ") + ")" : ", senza bisogno di spiegazioni") +
+      ". Come vi siete avvicinati a qualcosa di nuovo e sconosciuto: provando subito, osservando, aspettando gli altri?"]);
+  const perc = d.totaleIndizi ? d.indiziTot / d.totaleIndizi : 0;
+  const meno = [...d.sale].sort((a, b) => a.indizi / a.totale - b.indizi / b.totale)[0];
+  if (perc >= 0.85)
+    out.push(["🔍 Esplorazione", "Il gruppo ha osservato quasi ogni angolo delle sale (" + d.indiziTot + " indizi su " + d.totaleIndizi + "): un'esplorazione accurata, che lascia poco al caso."]);
+  else if (perc >= 0.6)
+    out.push(["🔍 Esplorazione", "Il gruppo ha osservato la maggior parte degli indizi (" + d.indiziTot + " su " + d.totaleIndizi + "), lasciando da parte qualche angolo — soprattutto nella " + breve(meno.nome) + ". Un'esplorazione mirata più che esaustiva."]);
+  else
+    out.push(["🔍 Esplorazione", "Il gruppo ha scelto una via essenziale (" + d.indiziTot + " indizi su " + d.totaleIndizi + "), andando dritto a ciò che serviva. Si può riflettere su cosa è stato lasciato indietro e se avrebbe aiutato."]);
+
+  const peggiore = [...d.sale].sort((a, b) => b.errori - a.errori)[0];
+  if (d.erroriTot === 0)
+    out.push(["🌱 Gestione dell'errore", "Nessun tentativo a vuoto alle serrature: ogni soluzione è arrivata al primo colpo. Vale la pena chiedersi come ci si è accorti di essere pronti."]);
+  else if (d.erroriTot < 10)
+    out.push(["🌱 Gestione dell'errore", "Qualche tentativo sbagliato lungo il percorso (" + d.erroriTot + ", di più nella " + breve(peggiore.nome) + "). L'errore ha avuto uno spazio contenuto: cosa si è fatto dopo ciascuno di essi?"]);
+  else
+    out.push(["🌱 Gestione dell'errore", "Parecchi tentativi sbagliati (" + d.erroriTot + ", soprattutto nella " + breve(peggiore.nome) + "). L'errore è stato un compagno di viaggio frequente: come lo ha vissuto il gruppo? Ha spinto a cambiare strategia o a insistere?"]);
+
+  if (d.messaggi === 0)
+    out.push(["🤝 Comunicazione", "Nel taccuino condiviso non sono stati scritti messaggi: la comunicazione è passata probabilmente a voce. Come si sono divisi i compiti e le idee?"]);
+  else if (d.messaggi <= 5)
+    out.push(["🤝 Comunicazione", "Nel taccuino condiviso " + (d.messaggi === 1 ? "è stato scritto 1 messaggio" : "sono stati scritti " + d.messaggi + " messaggi") + ": un uso misurato dello strumento comune, accanto al confronto a voce."]);
+  else
+    out.push(["🤝 Comunicazione", "Il taccuino condiviso è stato usato spesso (" + d.messaggi + " messaggi): il gruppo ha tenuto traccia insieme di ciò che trovava e pensava."]);
+
+  const lenta = [...d.sale].sort((a, b) => b.durata - a.durata)[0];
+  if (lenta && lenta.durata > 0)
+    out.push(["⏱ Ritmo", "La sala che ha richiesto più tempo è stata la " + breve(lenta.nome) + " (" + formatTempo(lenta.durata) + "). Cosa la rendeva più difficile o più coinvolgente delle altre?"]);
+
+  out.push(["🧩 Via alla soluzione finale", modo === "completo"
+    ? "Il gruppo ha ricostruito il titolo per intero, mettendo insieme gli indizi sparsi nella sala."
+    : "Il gruppo ha scelto la via più breve, rispondendo con la parola suggerita dall'iscrizione invece di ricostruire il titolo completo."]);
+  return out;
+}
+
+function costruisciTestoReport() {
+  const d = datiPercorso();
+  const modo = modoRisoluzione || (statoLocale.risposte || {}).modo || "breve";
+  const righe = [];
+  righe.push("IL CASTELLO DI ROCCABRUNA — RESOCONTO DEL PERCORSO");
+  righe.push("Partita: " + CODICE_PARTITA + " — " + new Date().toLocaleDateString("it-IT"));
+  righe.push("");
+  righe.push("IL PERCORSO");
+  if (d.tutorial) righe.push("• Atrio — Tutorial: " + testoTutorial(d.tutorial));
+  d.sale.forEach(s => righe.push("• " + s.nome + ": indizi " + s.indizi + "/" + s.totale + " · tentativi sbagliati " + s.errori + " · tempo " + formatTempo(s.durata)));
+  righe.push("Totale: indizi " + d.indiziTot + "/" + d.totaleIndizi + " · tentativi sbagliati " + d.erroriTot + " · tempo " + formatTempo(d.durataTot));
+  righe.push("");
+  righe.push("OSSERVAZIONI EMERSE");
+  osservazioni(d, modo).forEach(o => righe.push("• " + o[0].replace(/^\S+\s/, "") + ": " + o[1]));
+  righe.push("");
+  righe.push("IL TACCUINO");
+  righe.push(testoAiuti(d.aiuti));
+  righe.push("");
+  righe.push("Osservazioni e appunti scritti dal gruppo:");
+  const appunti = [...(statoLocale.messaggi || [])].sort((a, b) => (a.quando || 0) - (b.quando || 0));
+  if (!appunti.length) righe.push("(nessuno)");
+  appunti.forEach(m => righe.push("• " + m.testo));
+  righe.push("");
+  righe.push("© 2026 Dott. Magri Gregorio — Tutti i diritti riservati");
+  return righe.join("\n");
+}
+
+
+
+function inizioPartita(st) {
+  const t = (st.risposte || {}).tempi || {};
+  const inizi = Object.keys(t).map(k => t[k].inizio).filter(Boolean);
+  return inizi.length ? Math.min(...inizi) : null;
+}
+function finePartita(riga) {
+  const t = ((riga.risposte || {}).tempi || {});
+  if (t.stanza4 && t.stanza4.fine) return t.stanza4.fine;
+  return riga.aggiornato_il ? new Date(riga.aggiornato_il).getTime() : null;
+}
+function dataOra(ms) {
+  const d = new Date(ms);
+  return d.toLocaleDateString("it-IT") + " " + d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+}
+
+function prepara(p) {
+  statoLocale = {
+    indizi: p.riga.indizi || [], messaggi: p.riga.messaggi || [],
+    risposte: p.riga.risposte || {}, serrature_sbloccate: p.riga.serrature_sbloccate || []
+  };
+  modoRisoluzione = statoLocale.risposte.modo || null;
+  ORA_RIF = p.fine;
+  ETICHETTA = "Partita n. " + p.numero + " — " + dataOra(p.inizio);
+}
+
+async function caricaPartite() {
+  const stato = document.getElementById("statoElenco");
+  stato.textContent = "Caricamento…";
+  document.getElementById("vista").innerHTML = "";
+  const { data, error } = await sb.from("partite").select("*");
+  if (error) { stato.textContent = "Impossibile leggere i dati: " + error.message; return; }
+  partite = (data || []).map(riga => {
+    const inizio = inizioPartita(riga), fine = finePartita(riga);
+    const completata = (riga.serrature_sbloccate || []).includes("stanza4");
+    const durata = inizio && fine ? Math.round((fine - inizio) / 1000) : 0;
+    return { riga, inizio, fine, completata, durata };
+  }).filter(p => p.inizio && (p.completata || p.durata >= SOGLIA_MINUTI * 60))
+    .sort((a, b) => a.inizio - b.inizio);
+  partite.forEach((p, i) => p.numero = i + 1);   // numerazione stabile: la più vecchia è la n. 1
+  partite.reverse();
+  document.getElementById("btnTutti").disabled = !partite.length;
+  document.getElementById("btnCopiaTutti").disabled = !partite.length;
+  if (!partite.length) { stato.textContent = "Nessuna partita da mostrare."; document.getElementById("tabella").innerHTML = ""; return; }
+  stato.textContent = partite.length === 1 ? "1 partita." : partite.length + " partite.";
+  document.getElementById("tabella").innerHTML = `
+    <table>
+      <tr><th>N.</th><th>Data</th><th>Durata</th><th>Completata</th><th></th></tr>
+      ${partite.map((p, i) => `<tr>
+        <td>${p.numero}</td><td>${dataOra(p.inizio)}</td><td>${formatTempo(p.durata)}</td>
+        <td class="${p.completata ? "si" : "no"}">${p.completata ? "sì" : "no — fino alla sala " + ultimaSala(p)}</td>
+        <td class="azioni"><button class="piccolo" onclick="vedi(${i})">Vedi</button> <button class="piccolo" onclick="scaricaUno(${i})">💾</button></td>
+      </tr>`).join("")}
+    </table>`;
+}
+function ultimaSala(p) {
+  // sala raggiunta = quella dopo l'ultima porta aperta
+  const s = p.riga.serrature_sbloccate || [];
+  const aperte = [0, 1, 2, 3].filter(n => s.includes("stanza" + n));
+  return aperte.length ? Math.max(...aperte) + 1 : "dell'atrio";
+}
+
+function testoDi(p) {
+  prepara(p);
+  let t = costruisciTestoReport();
+  if (!p.completata) t = t.replace(/^• Via alla soluzione finale:.*\n/m, "");   // il baule non è stato aperto
+  return t.replace(/^Partita: .*$/m, ETICHETTA + (p.completata ? "" : " (non completata)"));
+}
+
+function vedi(i) {
+  const p = partite[i];
+  prepara(p);
+  const d = datiPercorso();
+  const modo = modoRisoluzione || "breve";
+  const obs = osservazioni(d, modo);
+  if (!p.completata) obs.pop();   // niente "via alla soluzione finale" se il baule non è stato aperto
+  const appunti = [...(statoLocale.messaggi || [])].sort((a, b) => (a.quando || 0) - (b.quando || 0));
+  const righeSale = d.sale.map(s => `<div class="reportRiga"><span class="eLabel">${s.nome}</span><span class="eValore">indizi ${s.indizi}/${s.totale} · errori ${s.errori} · ${formatTempo(s.durata)}</span></div>`).join("");
+  document.getElementById("vista").innerHTML = `
+    <div class="riquadro">
+      <h2>― ${ETICHETTA} ―</h2>
+      <p class="meta">${p.completata ? "Percorso completato" : "Percorso non completato"} · durata ${formatTempo(p.durata)}</p>
+      <div class="reportCard"><h3>Il percorso</h3>
+        ${d.tutorial ? `<div class="reportRiga"><span class="eLabel">Atrio — Tutorial</span><span class="eValore">${testoTutorial(d.tutorial)}</span></div>` : ""}${righeSale}
+        <div class="reportRiga" style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(196,138,40,.15)">
+          <span class="eLabel">Totale</span><span class="eValore">indizi ${d.indiziTot}/${d.totaleIndizi} · errori ${d.erroriTot} · ${formatTempo(d.durataTot)}</span></div>
+      </div>
+      <div class="reportCard"><h3>Osservazioni emerse</h3>
+        ${obs.map(o => `<div class="skillBlocco"><p class="skillLabel">${o[0]}</p><p class="skillText">${o[1]}</p></div>`).join("")}
+      </div>
+      <div class="reportCard"><h3>Il taccuino</h3>
+        <div class="skillBlocco"><p class="skillLabel">🧭 Aiuti automatici</p><p class="skillText">${testoAiuti(d.aiuti)}</p></div>
+        <div class="skillBlocco"><p class="skillLabel">💬 Osservazioni e appunti scritti dal gruppo</p>
+          ${appunti.length ? appunti.map(m => `<div class="reportRiga"><span class="eValore">${escapeHtml(m.testo)}</span></div>`).join("") : '<p class="skillText">Nessun appunto scritto.</p>'}
+        </div>
+      </div>
+      <div style="text-align:center"><button onclick="scaricaUno(${i})">💾 Scarica questo resoconto</button></div>
+    </div>`;
+  document.getElementById("vista").scrollIntoView({ behavior: "smooth" });
+}
+
+/* ── salvataggio: file di testo, con la copia come alternativa (su iPad il download non sempre parte) ── */
+function scarica(nome, testo) {
+  const fb = document.getElementById("feedback");
+  try {
+    const blob = new Blob([testo], { type: "text/plain;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = nome;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    fb.textContent = "File salvato (controlla i download). Se non compare, usa «Copia tutti».";
+  } catch (e) { copia(testo); }
+}
+function copia(testo) {
+  const fb = document.getElementById("feedback");
+  const manuale = () => { const b = document.getElementById("testoManuale"); b.style.display = "block"; b.value = testo; b.focus(); b.select(); fb.textContent = "Seleziona e copia il testo qui sotto."; };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(testo).then(() => fb.textContent = "Testo copiato negli appunti.").catch(manuale);
+  else manuale();
+}
+function scaricaUno(i) { const p = partite[i]; scarica("Castello-partita-" + p.numero + ".txt", testoDi(p)); }
+function testoTutti() { return partite.map(testoDi).join("\n\n════════════════════════════════════════\n\n"); }
+function scaricaTutti() { scarica("Castello-resoconti-" + new Date().toISOString().slice(0, 10) + ".txt", testoTutti()); }
+function copiaTutti() { copia(testoTutti()); }
+
+if (sessionStorage.getItem("accessoConduttori") === IMPRONTA_CONDUTTORI) mostraElenco();
+</script>
+</body>
+</html>
